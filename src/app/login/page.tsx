@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,29 +8,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Lock, Mail, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, AlertTriangle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    async function checkFirstLaunch() {
-      try {
-        const response = await fetch('/api/setup');
-        const data = await response.json();
-        if (data.isFirstLaunch) {
-          router.push('/setup');
-        }
-      } catch (err) {
-        console.error('Failed to query setup status.');
-      }
+  // Safely check for client initialization error
+  const [initError, setInitError] = useState<string | null>(() => {
+    try {
+      createClient();
+      return null;
+    } catch (err: any) {
+      console.error('[Login Page] Client initialization pre-flight check failed:', err);
+      return err.message || 'Supabase Client Configuration Error';
     }
-    checkFirstLaunch();
-  }, [router]);
+  });
+
+  // Safely initialize client
+  const supabase = useMemo(() => {
+    try {
+      return createClient();
+    } catch (err) {
+      return null;
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +43,14 @@ export default function LoginPage() {
       return;
     }
 
+    if (!supabase) {
+      toast.error(initError || 'Supabase client is not configured correctly.');
+      return;
+    }
+
     setLoading(true);
+    console.log('[Login Page] Attempting signInWithPassword for user:', email);
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -47,29 +58,70 @@ export default function LoginPage() {
       });
 
       if (error) {
-        toast.error(error.message);
+        console.error('[Login Page] Auth handler returned error response:', error);
+        
+        let friendlyMessage = error.message;
+        
+        // Map common Supabase Auth gateway messages
+        if (error.message.toLowerCase().includes('email logins are disabled')) {
+          friendlyMessage = 'Authentication Provider Disabled: Email/password authentication is not enabled for this project.';
+        } else if (error.message.toLowerCase().includes('invalid login credentials')) {
+          friendlyMessage = 'Invalid Credentials: Click show and verify your email or password.';
+        } else if (error.message.toLowerCase().includes('database error')) {
+          friendlyMessage = 'Database Connection Failed: The Supabase authentication backend could not write or read credentials.';
+        }
+
+        toast.error(friendlyMessage);
         setLoading(false);
         return;
       }
 
+      console.log('[Login Page] Auth succeeded, checking Multi-Factor Authentication (MFA)...');
       toast.success('Successfully authenticated!');
 
       // Check MFA status
-      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data: aalData, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError) {
+        console.error('[Login Page] MFA check failed:', mfaError);
+      }
+      
       const currentLevel = aalData?.currentLevel || 'aal1';
       const hasEnrolledFactors = aalData?.nextLevel === 'aal2';
 
       if (currentLevel === 'aal1') {
         if (hasEnrolledFactors) {
+          console.log('[Login Page] MFA challenge required. Routing to /login/mfa');
           router.push('/login/mfa');
         } else {
+          console.log('[Login Page] No MFA factor enrolled. Routing to setup /mfa/setup');
           router.push('/mfa/setup');
         }
       } else {
+        console.log('[Login Page] Account satisfies aal2. Routing to /dashboard');
         router.push('/dashboard');
       }
     } catch (err: any) {
-      toast.error(err.message || 'An error occurred during login.');
+      console.error('[Login Page] Catch block caught exception:', err);
+      
+      let friendlyError = err.message || 'An error occurred during login.';
+      
+      if (friendlyError.includes('Failed to fetch')) {
+        const isUrlMissing = !process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const isKeyMissing = !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const isKeyInvalid = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.startsWith('eyJ');
+
+        if (isUrlMissing) {
+          friendlyError = 'Missing Supabase URL: NEXT_PUBLIC_SUPABASE_URL is not set.';
+        } else if (isKeyMissing) {
+          friendlyError = 'Missing Publishable Key: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.';
+        } else if (isKeyInvalid) {
+          friendlyError = 'Invalid API Key: NEXT_PUBLIC_SUPABASE_ANON_KEY is not a valid JSON Web Token (must start with "eyJ").';
+        } else {
+          friendlyError = 'Network Error: Failed to connect to Supabase. This may be due to custom firewall rules, cors configurations, or an unregistered/unmatching publishable key.';
+        }
+      }
+
+      toast.error(friendlyError);
       setLoading(false);
     }
   };
@@ -99,6 +151,22 @@ export default function LoginPage() {
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
+              {initError && (
+                <div className="p-3.5 rounded-xl border border-rose-900/50 bg-rose-950/30 text-rose-200 text-xs flex items-start space-x-2.5">
+                  <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-rose-300">Integration Configuration Error</p>
+                    <p className="leading-normal">{initError}</p>
+                    <p className="pt-1">
+                      Check variables or run the{' '}
+                      <a href="/debug/supabase" className="underline hover:text-white font-medium">
+                        Supabase Diagnostics Utility
+                      </a>.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-300 font-medium">Email Address</Label>
                 <div className="relative">
@@ -110,7 +178,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-600 rounded-lg py-5.5"
-                    disabled={loading}
+                    disabled={loading || !!initError}
                     required
                   />
                 </div>
@@ -126,17 +194,17 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-600 rounded-lg py-5.5"
-                    disabled={loading}
+                    disabled={loading || !!initError}
                     required
                   />
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-3">
               <Button
                 type="submit"
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-6 rounded-lg transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
-                disabled={loading}
+                disabled={loading || !!initError}
               >
                 {loading ? (
                   <>
@@ -147,6 +215,16 @@ export default function LoginPage() {
                   'Sign In'
                 )}
               </Button>
+              {initError && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push('/debug/supabase')}
+                  className="w-full border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 py-6 rounded-lg"
+                >
+                  Open Integration Diagnostics
+                </Button>
+              )}
             </CardFooter>
           </form>
         </Card>

@@ -6,35 +6,56 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http')
-    ? process.env.NEXT_PUBLIC_SUPABASE_URL
-    : 'https://placeholder-project.supabase.co';
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+  console.log('[Supabase Middleware Client] Checking environment variables...');
 
-  const supabase = createServerClient(
-    url,
-    key,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  if (!url) {
+    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL is missing.');
+    throw new Error('Missing Supabase URL');
+  }
+
+  if (!key) {
+    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
+    throw new Error('Missing Publishable Key');
+  }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
+    throw new Error('Invalid Supabase URL');
+  }
+
+  console.log('[Supabase Middleware Client] Initializing createServerClient...');
+
+  try {
+    const supabase = createServerClient(
+      url,
+      key,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            supabaseResponse = NextResponse.next({
+              request,
+            });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+      }
+    );
 
-  // refreshing the auth token
-  await supabase.auth.getUser();
+    // refreshing the auth token
+    await supabase.auth.getUser();
+  } catch (err: any) {
+    console.error('[Supabase Middleware Client] Session update failed:', err);
+    throw err;
+  }
 
   return supabaseResponse;
 }

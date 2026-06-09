@@ -7,8 +7,7 @@ export async function middleware(request: NextRequest) {
   // 1. Define route groups
   const isPublicRoute =
     pathname === '/login' ||
-    pathname === '/setup' ||
-    pathname === '/api/setup' ||
+    pathname.startsWith('/debug') ||
     pathname.startsWith('/share') ||
     pathname.startsWith('/verify') ||
     pathname.startsWith('/api/verify-code') ||
@@ -22,11 +21,14 @@ export async function middleware(request: NextRequest) {
   // 2. Initialize Supabase client
   let supabaseResponse = NextResponse.next({ request });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http')
-    ? process.env.NEXT_PUBLIC_SUPABASE_URL
-    : 'https://placeholder-project.supabase.co';
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+  if (!url || !key || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    // If Supabase configuration is missing or invalid, bypass middleware check.
+    // This allows diagnostic pages like /debug/supabase to load properly.
+    return NextResponse.next();
+  }
 
   const supabase = createServerClient(
     url,
@@ -47,10 +49,29 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // 3. Retrieve user session & MFA level
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 3. Retrieve user session & MFA level safely
+  let user = null;
+  let aalData = null;
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.warn('[Middleware Auth] getUser returned error:', error.message);
+    } else {
+      user = data.user;
+    }
+
+    if (user) {
+      const { data: mfaData, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError) {
+        console.warn('[Middleware Auth] getAuthenticatorAssuranceLevel returned error:', mfaError.message);
+      } else {
+        aalData = mfaData;
+      }
+    }
+  } catch (err: any) {
+    console.error('[Middleware Auth] Network or connection error checking session:', err.message || err);
+  }
 
   if (!user) {
     // If not authenticated and trying to access protected paths, redirect to login
@@ -62,8 +83,6 @@ export async function middleware(request: NextRequest) {
   }
 
   // User is authenticated (aal1 or aal2)
-  const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
   const currentLevel = aalData?.currentLevel || 'aal1';
   const hasEnrolledFactors = aalData?.nextLevel === 'aal2'; // nextLevel is aal2 if there is at least one enrolled factor
 

@@ -4,30 +4,51 @@ import { cookies } from 'next/headers';
 export async function createClient() {
   const cookieStore = await cookies();
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.startsWith('http')
-    ? process.env.NEXT_PUBLIC_SUPABASE_URL
-    : 'https://placeholder-project.supabase.co';
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+  console.log('[Supabase Server Client] Checking environment variables...');
 
-  return createServerClient(
-    url,
-    key,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
+  if (!url) {
+    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL is missing.');
+    throw new Error('Missing Supabase URL');
+  }
+
+  if (!key) {
+    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
+    throw new Error('Missing Publishable Key');
+  }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
+    throw new Error('Invalid Supabase URL');
+  }
+
+  console.log('[Supabase Server Client] Initializing createServerClient...');
+
+  try {
+    return createServerClient(
+      url,
+      key,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch {
+              // Can be ignored if middleware handles refreshing.
+            }
+          },
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Can be ignored if middleware handles refreshing.
-          }
-        },
-      },
-    }
-  );
+      }
+    );
+  } catch (err: any) {
+    console.error('[Supabase Server Client] Instantiation failed:', err);
+    throw err;
+  }
 }
