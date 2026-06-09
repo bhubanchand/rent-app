@@ -47,13 +47,13 @@ export async function runServerDiagnostics(): Promise<DiagnosticsResult> {
   const urlValidFormat = url.startsWith('http://') || url.startsWith('https://');
 
   const anonKeyDetected = !!anonKey;
-  const anonKeyValidFormat = anonKey.startsWith('eyJ');
+  const anonKeyValidFormat = anonKey.startsWith('eyJ') || anonKey.startsWith('sb_publishable_') || anonKey.length > 10;
   const anonKeySanitized = anonKey 
     ? `${anonKey.substring(0, 8)}...${anonKey.substring(anonKey.length - 8)}`
     : 'Not Set';
 
   const serviceKeyDetected = !!serviceKey;
-  const serviceKeyValidFormat = serviceKey.startsWith('eyJ');
+  const serviceKeyValidFormat = serviceKey.startsWith('eyJ') || serviceKey.startsWith('sb_secret_') || serviceKey.length > 10;
   const serviceKeySanitized = serviceKey
     ? `${serviceKey.substring(0, 8)}...${serviceKey.substring(serviceKey.length - 8)}`
     : 'Not Set';

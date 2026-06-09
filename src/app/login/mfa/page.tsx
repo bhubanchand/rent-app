@@ -42,7 +42,7 @@ export default function MfaChallengePage() {
         return;
       }
 
-      const totpFactor = data.all.find((f) => f.factor_type === 'totp' && f.status === 'verified');
+      const totpFactor = data.all.find((f: any) => f.factor_type === 'totp' && f.status === 'verified');
       if (!totpFactor) {
         toast.error('No verified TOTP factors found.');
         router.push('/mfa/setup');

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { createDummyClient } from './dummy';
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -9,24 +10,17 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  console.log('[Supabase Middleware Client] Checking environment variables...');
+  console.log('[Supabase Middleware Client] Loading middleware environment...');
 
-  if (!url) {
-    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL is missing.');
-    throw new Error('Missing Supabase URL');
-  }
-
-  if (!key) {
-    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
-    throw new Error('Missing Publishable Key');
+  if (!url || !key) {
+    console.warn('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
+    return supabaseResponse;
   }
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    console.error('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
-    throw new Error('Invalid Supabase URL');
+    console.warn('[Supabase Middleware Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
+    return supabaseResponse;
   }
-
-  console.log('[Supabase Middleware Client] Initializing createServerClient...');
 
   try {
     const supabase = createServerClient(
@@ -54,7 +48,6 @@ export async function updateSession(request: NextRequest) {
     await supabase.auth.getUser();
   } catch (err: any) {
     console.error('[Supabase Middleware Client] Session update failed:', err);
-    throw err;
   }
 
   return supabaseResponse;

@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     if (invoicesError) throw invoicesError;
 
     // 4. Fetch Payments & Receipts for those invoices
-    const invoiceIds = (invoices || []).map((i) => i.id);
+    const invoiceIds = (invoices || []).map((i: any) => i.id);
     let payments: any[] = [];
     if (invoiceIds.length > 0) {
       const { data: paymentsData, error: paymentsError } = await adminSupabase

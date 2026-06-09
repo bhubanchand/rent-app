@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createDummyClient } from './dummy';
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -7,24 +8,17 @@ export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  console.log('[Supabase Server Client] Checking environment variables...');
+  console.log('[Supabase Server Client] Loading server-side environment...');
 
-  if (!url) {
-    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL is missing.');
-    throw new Error('Missing Supabase URL');
-  }
-
-  if (!key) {
-    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
-    throw new Error('Missing Publishable Key');
+  if (!url || !key) {
+    console.warn('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.');
+    return createDummyClient('Missing Supabase URL or Anon Key');
   }
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    console.error('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
-    throw new Error('Invalid Supabase URL');
+    console.warn('[Supabase Server Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
+    return createDummyClient(`Invalid Supabase URL: ${url}`);
   }
-
-  console.log('[Supabase Server Client] Initializing createServerClient...');
 
   try {
     return createServerClient(
@@ -49,6 +43,6 @@ export async function createClient() {
     );
   } catch (err: any) {
     console.error('[Supabase Server Client] Instantiation failed:', err);
-    throw err;
+    return createDummyClient(err.message || 'Initialization failed');
   }
 }

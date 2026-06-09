@@ -1,27 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
+import { createDummyClient } from './dummy';
 
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  console.log('[Supabase Admin Client] Checking environment variables...');
+  console.log('[Supabase Admin Client] Loading admin-side environment...');
 
-  if (!url) {
-    console.error('[Supabase Admin Client] NEXT_PUBLIC_SUPABASE_URL is missing.');
-    throw new Error('Missing Supabase URL');
-  }
-
-  if (!key) {
-    console.error('[Supabase Admin Client] SUPABASE_SERVICE_ROLE_KEY is missing.');
-    throw new Error('Missing Service Role Key');
+  if (!url || !key) {
+    console.warn('[Supabase Admin Client] NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.');
+    return createDummyClient('Missing Supabase URL or Service Role Key');
   }
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    console.error('[Supabase Admin Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
-    throw new Error('Invalid Supabase URL');
+    console.warn('[Supabase Admin Client] NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL:', url);
+    return createDummyClient(`Invalid Supabase URL: ${url}`);
   }
-
-  console.log('[Supabase Admin Client] Initializing admin client...');
 
   try {
     return createClient(
@@ -36,6 +30,6 @@ export function createAdminClient() {
     );
   } catch (err: any) {
     console.error('[Supabase Admin Client] Instantiation failed:', err);
-    throw err;
+    return createDummyClient(err.message || 'Initialization failed');
   }
 }

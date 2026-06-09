@@ -150,7 +150,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       setInvoices(invoiceData || []);
 
       // 3. Fetch payments
-      const invoiceIds = (invoiceData || []).map((i) => i.id);
+      const invoiceIds = (invoiceData || []).map((i: any) => i.id);
       let paymentData: Payment[] = [];
       if (invoiceIds.length > 0) {
         const { data, error: paymentError } = await supabase
@@ -189,7 +189,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       });
 
       // Invoices
-      invoiceData?.forEach((inv) => {
+      invoiceData?.forEach((inv: any) => {
         events.push({
           id: inv.id,
           type: 'invoice',

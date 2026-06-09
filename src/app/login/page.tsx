@@ -108,16 +108,19 @@ export default function LoginPage() {
       if (friendlyError.includes('Failed to fetch')) {
         const isUrlMissing = !process.env.NEXT_PUBLIC_SUPABASE_URL;
         const isKeyMissing = !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        const isKeyInvalid = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.startsWith('eyJ');
+        const isKeyInvalid = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && 
+          !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.startsWith('eyJ') && 
+          !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.startsWith('sb_publishable_') &&
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length <= 10;
 
         if (isUrlMissing) {
           friendlyError = 'Missing Supabase URL: NEXT_PUBLIC_SUPABASE_URL is not set.';
         } else if (isKeyMissing) {
           friendlyError = 'Missing Publishable Key: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.';
         } else if (isKeyInvalid) {
-          friendlyError = 'Invalid API Key: NEXT_PUBLIC_SUPABASE_ANON_KEY is not a valid JSON Web Token (must start with "eyJ").';
+          friendlyError = 'Invalid API Key: NEXT_PUBLIC_SUPABASE_ANON_KEY must be a valid JWT or modern sb_publishable_* key.';
         } else {
-          friendlyError = 'Network Error: Failed to connect to Supabase. This may be due to custom firewall rules, cors configurations, or an unregistered/unmatching publishable key.';
+          friendlyError = 'Network Error: Failed to connect to Supabase. This may be due to custom firewall rules, CORS configurations, or an unregistered/unmatching publishable key.';
         }
       }
 

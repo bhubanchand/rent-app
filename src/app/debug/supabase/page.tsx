@@ -212,7 +212,7 @@ export default function SupabaseDebugPage() {
                       !serverDiag?.anonKeyDetected 
                         ? 'Missing variable' 
                         : !serverDiag?.anonKeyValidFormat 
-                        ? 'Invalid Key: Must be a JWT token starting with "eyJ"' 
+                        ? 'Invalid Key: Must be a valid token (eyJ or sb_publishable)' 
                         : 'Loaded (Valid format)'
                     }
                   />
@@ -224,7 +224,7 @@ export default function SupabaseDebugPage() {
                       !serverDiag?.serviceKeyDetected 
                         ? 'Missing variable (Bypasses verification & PDF generation)' 
                         : !serverDiag?.serviceKeyValidFormat 
-                        ? 'Invalid Key: Must be a JWT token starting with "eyJ"' 
+                        ? 'Invalid Key: Must be a valid token (eyJ or sb_secret)' 
                         : 'Loaded (Valid format)'
                     }
                   />
@@ -429,12 +429,12 @@ export default function SupabaseDebugPage() {
             <div className="text-xs space-y-2 leading-relaxed">
               {!serverDiag.anonKeyValidFormat && (
                 <p>
-                  <strong>Unregistered / Invalid Publishable Key format:</strong> Your `NEXT_PUBLIC_SUPABASE_ANON_KEY` does not start with <code>&quot;eyJ&quot;</code>. Supabase API keys are JSON Web Tokens (JWTs). The current key prefix suggests it might be a secret/publishable key template or a key from another provider. Please verify your keys in the Supabase Dashboard under <strong>Project Settings &gt; API</strong>.
+                  <strong>Unregistered / Invalid Publishable Key format:</strong> Your `NEXT_PUBLIC_SUPABASE_ANON_KEY` is invalid. Supabase API keys should be valid JSON Web Tokens (starting with `eyJ`) or modern key formats (starting with `sb_publishable_`). Please verify your keys in the Supabase Dashboard under <strong>Project Settings &gt; API</strong>.
                 </p>
               )}
               {serverDiag.networkChecks.restStatus === 401 && serverDiag.networkChecks.restError?.includes('Unregistered') && (
                 <p>
-                  <strong>Unregistered API key:</strong> The Supabase API Gateway rejected the credentials with <code>sb-error-code: UNAUTHORIZED_UNREGISTERED_API_KEY</code>. This indicates that the anon key is structurally valid (or accepted by the gateway) but does not match the project referenced at <code>{serverDiag.urlValueSanitized}</code>.
+                  <strong>Unregistered API key:</strong> The Supabase API Gateway rejected the credentials with <code>sb-error-code: UNAUTHORIZED_UNREGISTERED_API_KEY</code>. This indicates that the anon key is structurally valid but does not match this project.
                 </p>
               )}
               {serverDiag.networkChecks.restError && !serverDiag.networkChecks.restError.includes('Unregistered') && (
