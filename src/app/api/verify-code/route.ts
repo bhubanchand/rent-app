@@ -68,6 +68,16 @@ export async function POST(request: NextRequest) {
       .or(`verification_code.eq.${cleanCode},receipt_number.eq.${cleanCode}`)
       .maybeSingle();
 
+    if (receiptError) {
+      console.error('[Verification API] Receipts query error:', receiptError);
+      if (receiptError.message?.includes('Unregistered API key')) {
+        return NextResponse.json({
+          status: 'INVALID',
+          message: 'Cryptographic verification ledger is offline. The server service role key is invalid or unregistered.'
+        });
+      }
+    }
+
     if (receipt && !Array.isArray(receipt) && receipt.receipt_number) {
       const payment: any = receipt.payment;
       const customer: any = payment?.invoice?.customer;
@@ -143,6 +153,16 @@ export async function POST(request: NextRequest) {
       `)
       .eq('invoice_number', cleanCode)
       .maybeSingle();
+
+    if (invoiceError) {
+      console.error('[Verification API] Invoices query error:', invoiceError);
+      if (invoiceError.message?.includes('Unregistered API key')) {
+        return NextResponse.json({
+          status: 'INVALID',
+          message: 'Cryptographic verification ledger is offline. The server service role key is invalid or unregistered.'
+        });
+      }
+    }
 
     if (invoice && !Array.isArray(invoice) && invoice.invoice_number) {
       const customer: any = invoice.customer;
