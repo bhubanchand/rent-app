@@ -1,5 +1,31 @@
 export function createDummyClient(reason: string) {
   console.warn(`[Supabase Dummy Client] Active. Reason: ${reason}`);
+
+  // Safe chainable thenable creator
+  const createThenable = (value: any) => {
+    const thenable: any = {
+      then(onfulfilled: any) {
+        return Promise.resolve(value).then(onfulfilled);
+      },
+      catch(onrejected: any) {
+        return Promise.resolve(value).catch(onrejected);
+      },
+      finally(onfinally: any) {
+        return Promise.resolve(value).finally(onfinally);
+      }
+    };
+
+    return new Proxy(thenable, {
+      get(target, prop) {
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+          return target[prop];
+        }
+        // Chain builder methods (e.g. .eq(), .limit(), .order()) back to the thenable
+        return () => createThenable(value);
+      }
+    });
+  };
+
   const dummy: any = new Proxy(() => {}, {
     get(target, prop) {
       if (prop === 'auth') {
@@ -37,7 +63,6 @@ export function createDummyClient(reason: string) {
                 })
               };
             }
-            // default fallback for other auth methods
             return () => Promise.resolve({ 
               data: {}, 
               error: { message: `Supabase client not initialized: ${reason}` } 
@@ -47,40 +72,10 @@ export function createDummyClient(reason: string) {
       }
       if (prop === 'from') {
         return () => ({
-          select: () => ({
-            limit: () => Promise.resolve({ data: [], error: null }),
-            order: () => ({
-              limit: () => Promise.resolve({ data: [], error: null })
-            }),
-            eq: () => ({
-              single: () => Promise.resolve({ data: null, error: null }),
-              limit: () => Promise.resolve({ data: [], error: null })
-            })
-          }),
-          insert: () => ({
-            select: () => ({
-              single: () => Promise.resolve({ 
-                data: null, 
-                error: { message: `Supabase client not initialized: ${reason}` } 
-              })
-            }),
-            single: () => Promise.resolve({ 
-              data: null, 
-              error: { message: `Supabase client not initialized: ${reason}` } 
-            })
-          }),
-          update: () => ({
-            eq: () => Promise.resolve({ 
-              data: null, 
-              error: { message: `Supabase client not initialized: ${reason}` } 
-            })
-          }),
-          delete: () => ({
-            eq: () => Promise.resolve({ 
-              data: null, 
-              error: { message: `Supabase client not initialized: ${reason}` } 
-            })
-          })
+          select: () => createThenable({ data: [], error: null }),
+          insert: () => createThenable({ data: null, error: { message: `Supabase client not initialized: ${reason}` } }),
+          update: () => createThenable({ data: null, error: { message: `Supabase client not initialized: ${reason}` } }),
+          delete: () => createThenable({ data: null, error: { message: `Supabase client not initialized: ${reason}` } })
         });
       }
       return dummy;

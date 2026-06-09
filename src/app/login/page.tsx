@@ -18,13 +18,14 @@ export default function LoginPage() {
 
   // Safely check for client initialization error
   const [initError, setInitError] = useState<string | null>(() => {
-    try {
-      createClient();
-      return null;
-    } catch (err: any) {
-      console.error('[Login Page] Client initialization pre-flight check failed:', err);
-      return err.message || 'Supabase Client Configuration Error';
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url) return 'NEXT_PUBLIC_SUPABASE_URL is missing from environment.';
+    if (!key) return 'NEXT_PUBLIC_SUPABASE_ANON_KEY is missing from environment.';
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return `NEXT_PUBLIC_SUPABASE_URL is not a valid HTTP/HTTPS URL (got "${url}"). Please verify if you accidentally swapped the URL and publishable key values in your environment configuration.`;
     }
+    return null;
   });
 
   // Safely initialize client

@@ -25,8 +25,12 @@ export async function middleware(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-    // If Supabase configuration is missing or invalid, bypass middleware check.
-    // This allows diagnostic pages like /debug/supabase to load properly.
+    // If Supabase configuration is missing or invalid, block dashboard access and redirect to login.
+    // This still lets the diagnostic page `/debug/supabase` and `/login` load.
+    if (isDashboardRoute || isMfaSetupRoute || isMfaChallengeRoute) {
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl);
+    }
     return NextResponse.next();
   }
 
