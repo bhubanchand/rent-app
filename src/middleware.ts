@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/verify') ||
     pathname.startsWith('/api/verify-code') ||
     pathname.startsWith('/api/share-portal') ||
+    pathname.startsWith('/api/invoices/sign') ||
     pathname === '/favicon.ico';
 
   const isDashboardRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/api/dashboard');

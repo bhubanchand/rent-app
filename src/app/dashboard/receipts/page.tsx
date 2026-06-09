@@ -19,8 +19,12 @@ import {
   IndianRupee,
   ShieldCheck,
   TrendingUp,
+  Printer,
+  Share2,
+  Copy,
+  Check
 } from 'lucide-react';
-import { generateReceiptPdf } from '@/lib/pdf-generator';
+import { buildReceiptPdfDoc, generateReceiptPdf } from '@/lib/pdf-generator';
 
 type ReceiptItem = {
   id: string;
@@ -57,6 +61,9 @@ export default function ReceiptsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState('all');
+  
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchReceipts = async () => {
     setLoading(true);
@@ -133,6 +140,96 @@ export default function ReceiptsPage() {
       toast.success('Receipt PDF downloaded!');
     } catch (err: any) {
       toast.error('Failed to generate Receipt PDF.');
+    }
+  };
+
+  const handlePrint = async (receipt: ReceiptItem) => {
+    try {
+      toast.info(`Preparing print preview for ${receipt.receipt_number}...`);
+      const customer = receipt.payment?.invoice?.customer;
+
+      const doc = await buildReceiptPdfDoc({
+        receipt_number: receipt.receipt_number,
+        verification_code: receipt.verification_code,
+        sha256_hash: receipt.sha256_hash,
+        digital_signature: receipt.digital_signature,
+        payment: {
+          amount: Number(receipt.payment?.amount || 0),
+          payment_date: receipt.payment?.payment_date,
+          payment_method: receipt.payment?.payment_method || 'cash',
+          transaction_id: receipt.payment?.transaction_id,
+          invoice: {
+            invoice_number: receipt.payment?.invoice?.invoice_number || 'N/A'
+          }
+        },
+        customer: {
+          full_name: customer?.full_name || 'N/A',
+          company_name: customer?.company_name || null,
+          email: customer?.email || '',
+          phone: customer?.phone || null
+        }
+      });
+
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+      } else {
+        toast.error('Print preview blocked by pop-up blocker.');
+      }
+    } catch (err: any) {
+      toast.error('Failed to open print preview.');
+    }
+  };
+
+  const handleCopyShareLink = async (receipt: ReceiptItem) => {
+    const customerId = receipt.payment?.invoice?.customer?.id;
+    if (!customerId) return;
+
+    setSharingId(receipt.id);
+    try {
+      // 1. Fetch or create a Customer Share Portal link
+      let { data: shareLink, error: shareError } = await supabase
+        .from('share_links')
+        .select('*')
+        .eq('customer_id', customerId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (shareError) throw shareError;
+
+      if (!shareLink) {
+        // Create new secure token
+        const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const { data: newLink, error: createError } = await supabase
+          .from('share_links')
+          .insert([
+            {
+              customer_id: customerId,
+              token,
+              is_active: true,
+              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+            }
+          ])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        shareLink = newLink;
+      }
+
+      const appUrl = window.location.origin;
+      const portalUrl = `${appUrl}/share/${shareLink.token}`;
+      
+      await navigator.clipboard.writeText(portalUrl);
+      setCopiedId(receipt.id);
+      toast.success('Secure customer billing portal link copied!');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate share link.');
+    } finally {
+      setSharingId(null);
     }
   };
 
@@ -320,6 +417,31 @@ export default function ReceiptsPage() {
                             >
                               <Download className="h-3.5 w-3.5" />
                             </Button>
+
+                            <Button
+                              onClick={() => handlePrint(receipt)}
+                              variant="ghost"
+                              className="h-8 w-8 p-0 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white"
+                              title="Print Receipt"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                            </Button>
+
+                            <Button
+                              onClick={() => handleCopyShareLink(receipt)}
+                              variant="ghost"
+                              disabled={sharingId === receipt.id}
+                              className="h-8 w-8 p-0 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white"
+                              title="Copy Customer Share Link"
+                            >
+                              {sharingId === receipt.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+                              ) : copiedId === receipt.id ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              ) : (
+                                <Share2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
                             
                             <Button
                               onClick={() => router.push(`/verify?code=${receipt.verification_code}`)}
@@ -388,7 +510,32 @@ export default function ReceiptsPage() {
                         onClick={() => handleDownload(receipt)}
                         className="flex-1 bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-300 text-xs py-2 h-auto flex items-center justify-center gap-1.5"
                       >
-                        <Download className="h-3.5 w-3.5" /> PDF Receipt
+                        <Download className="h-3.5 w-3.5" /> PDF
+                      </Button>
+
+                      <Button
+                        onClick={() => handlePrint(receipt)}
+                        className="flex-1 bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-300 text-xs py-2 h-auto flex items-center justify-center gap-1.5"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Print
+                      </Button>
+
+                      <Button
+                        onClick={() => handleCopyShareLink(receipt)}
+                        disabled={sharingId === receipt.id}
+                        className="flex-1 bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-300 text-xs py-2 h-auto flex items-center justify-center gap-1.5"
+                      >
+                        {sharingId === receipt.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : copiedId === receipt.id ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-400" /> Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" /> Share
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>

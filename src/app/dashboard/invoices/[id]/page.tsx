@@ -28,8 +28,9 @@ import {
   Sparkles,
   PlusCircle,
   ExternalLink,
+  Printer,
 } from 'lucide-react';
-import { generateInvoicePdf, generateReceiptPdf } from '@/lib/pdf-generator';
+import { generateInvoicePdf, generateReceiptPdf, buildInvoicePdfDoc, buildReceiptPdfDoc } from '@/lib/pdf-generator';
 
 type Payment = {
   id: string;
@@ -118,8 +119,19 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
       // Generate verification QR code
       if (data) {
+        let sig = '';
+        try {
+          const res = await fetch(`/api/invoices/sign?code=${data.invoice_number}`);
+          if (res.ok) {
+            const json = await res.json();
+            sig = json.sig || '';
+          }
+        } catch (e) {
+          console.error('Failed to sign invoice code for QR:', e);
+        }
+        const sigParam = sig ? `&sig=${sig}` : '';
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-        const verificationUrl = `${appUrl}/verify?code=${data.invoice_number}`;
+        const verificationUrl = `${appUrl}/verify?code=${data.invoice_number}${sigParam}`;
         const codeUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 250 });
         setQrCodeUrl(codeUrl);
       }
@@ -277,7 +289,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
       toast.info('Compiling invoice PDF...');
       await generateInvoicePdf({
         invoice_number: invoice.invoice_number,
-        amount: invoice.amount,
+        amount: Number(invoice.amount),
         currency: invoice.currency,
         issue_date: invoice.issue_date,
         due_date: invoice.due_date,
@@ -292,6 +304,35 @@ export default function InvoiceDetailPage({ params }: PageProps) {
     }
   };
 
+  // Helper: Trigger Invoice PDF Print
+  const printInvoicePdf = async () => {
+    if (!invoice) return;
+    try {
+      toast.info('Preparing invoice print preview...');
+      const doc = await buildInvoicePdfDoc({
+        invoice_number: invoice.invoice_number,
+        amount: Number(invoice.amount),
+        currency: invoice.currency,
+        issue_date: invoice.issue_date,
+        due_date: invoice.due_date,
+        description: invoice.description,
+        status: invoice.status,
+        customer: invoice.customer,
+        payments: invoice.payments || [],
+      });
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+      } else {
+        toast.error('Print preview blocked by pop-up blocker.');
+      }
+    } catch (err: any) {
+      toast.error('Failed to open print preview.');
+    }
+  };
+
   // Helper: Trigger Receipt PDF Download
   const downloadReceiptPdf = async (payment: Payment) => {
     if (!invoice || !payment.receipt) return;
@@ -303,7 +344,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         sha256_hash: payment.receipt.sha256_hash,
         digital_signature: payment.receipt.digital_signature,
         payment: {
-          amount: payment.amount,
+          amount: Number(payment.amount),
           payment_date: payment.payment_date,
           payment_method: payment.payment_method,
           transaction_id: payment.transaction_id,
@@ -321,6 +362,45 @@ export default function InvoiceDetailPage({ params }: PageProps) {
       toast.success('Receipt PDF downloaded!');
     } catch (err: any) {
       toast.error('Failed to generate Receipt PDF.');
+    }
+  };
+
+  // Helper: Trigger Receipt PDF Print
+  const printReceiptPdf = async (payment: Payment) => {
+    if (!invoice || !payment.receipt) return;
+    try {
+      toast.info(`Preparing print preview for receipt ${payment.receipt.receipt_number}...`);
+      const doc = await buildReceiptPdfDoc({
+        receipt_number: payment.receipt.receipt_number,
+        verification_code: payment.receipt.verification_code,
+        sha256_hash: payment.receipt.sha256_hash,
+        digital_signature: payment.receipt.digital_signature,
+        payment: {
+          amount: Number(payment.amount),
+          payment_date: payment.payment_date,
+          payment_method: payment.payment_method,
+          transaction_id: payment.transaction_id,
+          invoice: {
+            invoice_number: invoice.invoice_number,
+          },
+        },
+        customer: {
+          full_name: invoice.customer.full_name,
+          company_name: invoice.customer.company_name,
+          email: invoice.customer.email,
+          phone: invoice.customer.phone,
+        },
+      });
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+      } else {
+        toast.error('Print preview blocked by pop-up blocker.');
+      }
+    } catch (err: any) {
+      toast.error('Failed to open print preview.');
     }
   };
 
@@ -401,10 +481,19 @@ export default function InvoiceDetailPage({ params }: PageProps) {
           <Button
             onClick={downloadInvoicePdf}
             variant="outline"
-            className="border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl py-5.5 flex items-center gap-1.5"
+            className="border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl py-5.5 flex items-center gap-1.5 active:scale-95 transition-transform"
           >
             <Download className="h-4.5 w-4.5" />
             Download PDF
+          </Button>
+
+          <Button
+            onClick={printInvoicePdf}
+            variant="outline"
+            className="border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl py-5.5 flex items-center gap-1.5 active:scale-95 transition-transform"
+          >
+            <Printer className="h-4.5 w-4.5" />
+            Print Invoice
           </Button>
         </div>
       </div>
@@ -548,13 +637,22 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                           </td>
                           <td className="p-4 text-right">
                             {p.receipt && (
-                              <Button
-                                onClick={() => downloadReceiptPdf(p)}
-                                variant="ghost"
-                                className="h-8 py-1 px-2.5 text-xs border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg flex items-center gap-1"
-                              >
-                                <Download className="h-3 w-3" /> PDF
-                              </Button>
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  onClick={() => downloadReceiptPdf(p)}
+                                  variant="ghost"
+                                  className="h-8 py-1 px-2.5 text-xs border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg flex items-center gap-1"
+                                >
+                                  <Download className="h-3 w-3" /> PDF
+                                </Button>
+                                <Button
+                                  onClick={() => printReceiptPdf(p)}
+                                  variant="ghost"
+                                  className="h-8 py-1 px-2.5 text-xs border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg flex items-center gap-1"
+                                >
+                                  <Printer className="h-3 w-3" /> Print
+                                </Button>
+                              </div>
                             )}
                           </td>
                         </tr>

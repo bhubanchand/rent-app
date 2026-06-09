@@ -44,17 +44,43 @@ type ReceiptData = {
 };
 
 /**
- * Generates and downloads a professional PDF for an invoice.
+ * Mask customer email addresses (e.g. johndoe@example.com -> j***e@example.com)
  */
-export async function generateInvoicePdf(invoice: InvoiceData) {
+export function maskEmail(email: string): string {
+  if (!email || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local[0]}***${local[local.length - 1]}@${domain}`;
+}
+
+/**
+ * Builds the jsPDF instance for an invoice.
+ */
+export async function buildInvoicePdfDoc(invoice: InvoiceData): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
     format: 'a4',
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-  const verificationUrl = `${appUrl}/verify?code=${invoice.invoice_number}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  
+  // Secure invoice number by signing it to prevent public enumeration
+  let sig = '';
+  try {
+    const res = await fetch(`/api/invoices/sign?code=${invoice.invoice_number}`);
+    if (res.ok) {
+      const data = await res.json();
+      sig = data.sig || '';
+    }
+  } catch (err) {
+    console.error('Failed to sign invoice code for PDF:', err);
+  }
+
+  const sigParam = sig ? `&sig=${sig}` : '';
+  const verificationUrl = `${appUrl}/verify?code=${invoice.invoice_number}${sigParam}`;
   const qrCodeUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 200 });
 
   // 1. Draw branding/header banner
@@ -104,7 +130,7 @@ export async function generateInvoicePdf(invoice: InvoiceData) {
   if (invoice.customer.company_name) {
     doc.text(invoice.customer.company_name, 120, 59);
   }
-  doc.text(`Email: ${invoice.customer.email}`, 120, 64);
+  doc.text(`Email: ${maskEmail(invoice.customer.email)}`, 120, 64);
   if (invoice.customer.phone) {
     doc.text(`Phone: ${invoice.customer.phone}`, 120, 69);
   }
@@ -188,21 +214,28 @@ export async function generateInvoicePdf(invoice: InvoiceData) {
     });
   }
 
-  // Save PDF file
+  return doc;
+}
+
+/**
+ * Generates and downloads a professional PDF for an invoice.
+ */
+export async function generateInvoicePdf(invoice: InvoiceData) {
+  const doc = await buildInvoicePdfDoc(invoice);
   doc.save(`${invoice.invoice_number}.pdf`);
 }
 
 /**
- * Generates and downloads a professional PDF for a payment receipt.
+ * Builds the jsPDF instance for a payment receipt.
  */
-export async function generateReceiptPdf(receipt: ReceiptData) {
+export async function buildReceiptPdfDoc(receipt: ReceiptData): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
     format: 'a4',
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
   const verificationUrl = `${appUrl}/verify?code=${receipt.verification_code}`;
   const qrCodeUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 200 });
 
@@ -250,7 +283,7 @@ export async function generateReceiptPdf(receipt: ReceiptData) {
   if (receipt.customer.company_name) {
     doc.text(receipt.customer.company_name, 120, 59);
   }
-  doc.text(`Email: ${receipt.customer.email}`, 120, 64);
+  doc.text(`Email: ${maskEmail(receipt.customer.email)}`, 120, 64);
   if (receipt.customer.phone) {
     doc.text(`Phone: ${receipt.customer.phone}`, 120, 69);
   }
@@ -310,6 +343,13 @@ export async function generateReceiptPdf(receipt: ReceiptData) {
   doc.setTextColor(148, 163, 184);
   doc.text('GENUINE RentApp DIGITAL DOCUMENT - VALID UNTIL REVOKED', 105, 280, { align: 'center' });
 
-  // Save PDF file
+  return doc;
+}
+
+/**
+ * Generates and downloads a professional PDF for a payment receipt.
+ */
+export async function generateReceiptPdf(receipt: ReceiptData) {
+  const doc = await buildReceiptPdfDoc(receipt);
   doc.save(`${receipt.receipt_number}.pdf`);
 }

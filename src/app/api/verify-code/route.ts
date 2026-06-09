@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
+import { computeReceiptHash, computeDigitalSignature, signInvoiceNumber } from '@/lib/security-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { code } = body;
+    const { code, sig } = body;
 
     if (!code || typeof code !== 'string') {
       return NextResponse.json({ error: 'Code is required' }, { status: 400 });
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient();
 
-    // 2. Search in Receipts (by verification_code or receipt_number)
+    // 2. Search in Receipts (ONLY by verification_code to prevent receipt enumeration attacks)
+    // Receipts CANNOT be looked up directly by sequential receipt_number.
     const { data: receipt, error: receiptError } = await adminSupabase
       .from('receipts')
       .select(`
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
           invoice:invoices(
             invoice_number,
             customer:customers(
+              id,
               full_name,
               company_name,
               email,
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
           )
         )
       `)
-      .or(`verification_code.eq.${cleanCode},receipt_number.eq.${cleanCode}`)
+      .eq('verification_code', cleanCode)
       .maybeSingle();
 
     if (receiptError) {
@@ -83,7 +86,51 @@ export async function POST(request: NextRequest) {
       const customer: any = payment?.invoice?.customer;
       const customerName = customer?.full_name || 'N/A';
       
-      // Log verification event
+      // Perform cryptographic signature verification
+      const computedHash = computeReceiptHash({
+        receiptNumber: receipt.receipt_number,
+        amount: Number(payment?.amount || 0),
+        paymentDate: payment?.payment_date || '',
+        customerId: customer?.id || '',
+        transactionId: payment?.transaction_id || ''
+      });
+
+      const computedSignature = computeDigitalSignature(computedHash);
+
+      const isHashValid = computedHash === receipt.sha256_hash;
+      const isSignatureValid = computedSignature === receipt.digital_signature;
+
+      if (!isHashValid || !isSignatureValid) {
+        // Log tampering event
+        await adminSupabase.from('audit_logs').insert([
+          {
+            user_id: null,
+            action: `QR_VERIFY_TAMPERED receipt_number=${receipt.receipt_number}`,
+            ip_address: ip,
+            new_value: { 
+              code: cleanCode, 
+              type: 'receipt', 
+              computedHash, 
+              storedHash: receipt.sha256_hash,
+              computedSignature,
+              storedSignature: receipt.digital_signature
+            }
+          }
+        ]);
+
+        return NextResponse.json({
+          status: 'TAMPERED',
+          type: 'receipt',
+          number: receipt.receipt_number,
+          customerName,
+          amount: payment?.amount || 0,
+          date: payment?.payment_date || '',
+          statusText: 'Tampered Document',
+          message: 'WARNING: Cryptographic seal mismatch! This document has been altered or modified outside the secure database ledger.'
+        });
+      }
+
+      // Log verification success
       await adminSupabase.from('audit_logs').insert([
         {
           user_id: null,
@@ -104,7 +151,7 @@ export async function POST(request: NextRequest) {
         details: {
           receipt_number: receipt.receipt_number,
           verification_code: receipt.verification_code,
-          sha256_hash: receipt.sha255_hash || receipt.sha256_hash,
+          sha256_hash: receipt.sha256_hash,
           digital_signature: receipt.digital_signature,
           payment: {
             amount: payment?.amount || 0,
@@ -125,7 +172,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Search in Invoices (by invoice_number)
+    // 3. Search in Invoices (validate signature to prevent invoice enumeration attacks)
+    if (cleanCode.startsWith('INV-')) {
+      if (!sig || sig !== signInvoiceNumber(cleanCode)) {
+        return NextResponse.json({
+          status: 'INVALID',
+          message: 'Access Denied: Manual invoice lookup is disabled to prevent enumeration. Please scan the official invoice QR code.'
+        });
+      }
+    }
+
     const { data: invoice, error: invoiceError } = await adminSupabase
       .from('invoices')
       .select(`
@@ -167,7 +223,7 @@ export async function POST(request: NextRequest) {
     if (invoice && !Array.isArray(invoice) && invoice.invoice_number) {
       const customer: any = invoice.customer;
       
-      // Log verification event
+      // Log verification success
       await adminSupabase.from('audit_logs').insert([
         {
           user_id: null,
@@ -229,4 +285,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

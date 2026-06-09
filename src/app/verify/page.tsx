@@ -20,12 +20,14 @@ import {
   Receipt as ReceiptIcon,
   Calendar,
   User,
-  Lock
+  Lock,
+  Printer,
+  AlertTriangle
 } from 'lucide-react';
-import { generateInvoicePdf, generateReceiptPdf } from '@/lib/pdf-generator';
+import { buildInvoicePdfDoc, buildReceiptPdfDoc, generateInvoicePdf, generateReceiptPdf } from '@/lib/pdf-generator';
 
 type VerificationResult = {
-  status: 'VALID' | 'INVALID';
+  status: 'VALID' | 'INVALID' | 'TAMPERED';
   type?: 'invoice' | 'receipt';
   number?: string;
   customerName?: string;
@@ -41,12 +43,14 @@ function VerificationContent() {
   const router = useRouter();
   
   const codeParam = searchParams.get('code') || '';
+  const sigParam = searchParams.get('sig') || '';
+  
   const [code, setCode] = useState(codeParam);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const performVerification = async (verifyCode: string) => {
+  const performVerification = async (verifyCode: string, sigVal: string) => {
     if (!verifyCode) return;
     setLoading(true);
     setErrorMsg(null);
@@ -56,7 +60,7 @@ function VerificationContent() {
       const response = await fetch('/api/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: verifyCode }),
+        body: JSON.stringify({ code: verifyCode, sig: sigVal }),
       });
 
       const data = await response.json();
@@ -77,9 +81,9 @@ function VerificationContent() {
   useEffect(() => {
     if (codeParam) {
       setCode(codeParam);
-      performVerification(codeParam);
+      performVerification(codeParam, sigParam);
     }
-  }, [codeParam]);
+  }, [codeParam, sigParam]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +95,10 @@ function VerificationContent() {
     // Push query parameter to URL for shareability
     const newParams = new URLSearchParams();
     newParams.set('code', code.trim().toUpperCase());
+    // Preserve sig if it matches the current input
+    if (sigParam && codeParam.trim().toUpperCase() === code.trim().toUpperCase()) {
+      newParams.set('sig', sigParam);
+    }
     router.push(`/verify?${newParams.toString()}`);
   };
 
@@ -99,7 +107,6 @@ function VerificationContent() {
     try {
       toast.info(`Generating ${res.type === 'invoice' ? 'Invoice' : 'Receipt'} PDF...`);
       if (res.type === 'invoice') {
-        // Ensure amount is parsed as float for safety
         const details = {
           ...res.details,
           amount: Number(res.details.amount)
@@ -111,6 +118,34 @@ function VerificationContent() {
       toast.success('Document PDF downloaded!');
     } catch (err) {
       toast.error('Failed to generate PDF document.');
+    }
+  };
+
+  const handlePrintPdf = async (res: VerificationResult) => {
+    if (!res.details) return;
+    try {
+      toast.info('Preparing document print preview...');
+      let doc;
+      if (res.type === 'invoice') {
+        const details = {
+          ...res.details,
+          amount: Number(res.details.amount)
+        };
+        doc = await buildInvoicePdfDoc(details);
+      } else {
+        doc = await buildReceiptPdfDoc(res.details);
+      }
+
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+      } else {
+        toast.error('Print preview blocked by pop-up blocker.');
+      }
+    } catch (err) {
+      toast.error('Failed to open print preview.');
     }
   };
 
@@ -142,7 +177,7 @@ function VerificationContent() {
               <div className="flex gap-2">
                 <Input
                   id="code"
-                  placeholder="e.g. RCP-2026-000001 or INV-2026-000001"
+                  placeholder="e.g. RCP-8A2F9B or INV-2026-000001"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   className="bg-slate-950/80 border-slate-800 focus:border-indigo-500 text-white rounded-lg flex-1 py-5"
@@ -186,7 +221,46 @@ function VerificationContent() {
           {/* Validation Results */}
           {result && (
             <div className="border-t border-slate-800 pt-6 space-y-5">
-              {result.status === 'VALID' ? (
+              
+              {/* TAMPERED STATUS */}
+              {result.status === 'TAMPERED' && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-red-950/30 border border-red-500/40 text-red-400 rounded-2xl flex items-start gap-3 shadow-lg shadow-red-900/10">
+                    <AlertTriangle className="h-6 w-6 shrink-0 text-red-500 mt-0.5 animate-pulse" />
+                    <div>
+                      <p className="font-bold text-sm text-red-200">TAMPERED RECEIPT DETECTED</p>
+                      <p className="text-[10px] text-red-300 mt-1 leading-relaxed font-semibold">
+                        {result.message || 'WARNING: The integrity signature does not match database ledger records! This receipt has been modified outside the system.'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Show basic information but disable PDF download to prevent downloading fake receipt */}
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-slate-500">
+                      <span>Receipt Number</span>
+                      <span className="font-mono font-bold text-red-400">{result.number}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500">
+                      <span>Customer</span>
+                      <span className="font-semibold text-slate-300">{result.customerName}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500">
+                      <span>Amount</span>
+                      <span className="font-semibold text-slate-350">₹{Number(result.amount).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500">
+                      <span>Status</span>
+                      <span className="px-2 py-0.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-full font-bold text-[9px] uppercase">
+                        {result.statusText}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VALID STATUS */}
+              {result.status === 'VALID' && (
                 <div className="space-y-5">
                   {/* Verified Seal */}
                   <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 text-emerald-450 rounded-2xl flex items-start gap-3">
@@ -260,38 +334,17 @@ function VerificationContent() {
                           )}
                           <div className="flex justify-between">
                             <span className="text-slate-500">Email</span>
-                            <span className="text-white">{result.details.customer.email}</span>
+                            <span className="text-white">
+                              {/* Show masked email client side for consistency */}
+                              {result.details.customer.email.includes('@') ? (
+                                <span>{result.details.customer.email.split('@')[0].slice(0, 1)}***@{result.details.customer.email.split('@')[1]}</span>
+                              ) : (
+                                result.details.customer.email
+                              )}
+                            </span>
                           </div>
-                          {result.details.customer.phone && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Phone</span>
-                              <span className="text-white">{result.details.customer.phone}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
-
-                      {/* Payment History block */}
-                      {result.details.payments && result.details.payments.length > 0 && (
-                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3 text-xs">
-                          <h3 className="font-semibold text-white border-b border-slate-800 pb-2 flex items-center gap-1.5">
-                            <ReceiptIcon className="h-3.5 w-3.5 text-indigo-400" /> Payment Ledger
-                          </h3>
-                          <div className="space-y-2">
-                            {result.details.payments.map((p: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center text-slate-400 border-b border-slate-900/60 pb-1.5 last:border-b-0 last:pb-0">
-                                <div>
-                                  <span className="font-semibold text-white block">Partial Payment #{idx + 1}</span>
-                                  <span className="text-[10px] text-slate-550">{p.payment_date} ({p.payment_method.toUpperCase()})</span>
-                                </div>
-                                <span className="font-bold text-white">
-                                  ₹{Number(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -352,14 +405,14 @@ function VerificationContent() {
                           )}
                           <div className="flex justify-between">
                             <span className="text-slate-500">Email</span>
-                            <span className="text-white">{result.details.customer.email}</span>
+                            <span className="text-white">
+                              {result.details.customer.email.includes('@') ? (
+                                <span>{result.details.customer.email.split('@')[0].slice(0, 1)}***@{result.details.customer.email.split('@')[1]}</span>
+                              ) : (
+                                result.details.customer.email
+                              )}
+                            </span>
                           </div>
-                          {result.details.customer.phone && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Phone</span>
-                              <span className="text-white">{result.details.customer.phone}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -382,20 +435,32 @@ function VerificationContent() {
                     </div>
                   )}
 
-                  {/* Download PDF CTA Button */}
-                  <Button
-                    onClick={() => handleDownloadPdf(result)}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-5.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                  >
-                    <Download className="h-4 w-4" /> Download Official PDF
-                  </Button>
+                  {/* Actions Bar */}
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => handleDownloadPdf(result)}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                    >
+                      <Download className="h-4 w-4" /> Download PDF
+                    </Button>
+                    <Button
+                      onClick={() => handlePrintPdf(result)}
+                      variant="outline"
+                      className="flex-1 border-slate-800 hover:bg-slate-800/80 text-slate-200 font-semibold py-5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                    >
+                      <Printer className="h-4 w-4" /> Print Document
+                    </Button>
+                  </div>
                 </div>
-              ) : (
+              )}
+
+              {/* INVALID STATUS */}
+              {result.status === 'INVALID' && (
                 <div className="p-4 bg-red-950/20 border border-red-900/40 text-red-400 rounded-2xl flex items-start gap-3">
                   <XCircle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
                   <div>
                     <p className="font-bold text-sm text-white">INVALID REFERENCE CODE</p>
-                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed font-semibold">
                       {result.message || 'No registered invoice or receipt matches this verification signature.'}
                     </p>
                   </div>
@@ -405,7 +470,7 @@ function VerificationContent() {
           )}
         </CardContent>
         <CardFooter className="justify-center border-t border-slate-800/60 pt-4 text-[10px] text-slate-500">
-          Secure cryptographic seal. Protected against tampering.
+          Secure cryptographic seal. Protected against tampering and enumeration.
         </CardFooter>
       </Card>
     </div>

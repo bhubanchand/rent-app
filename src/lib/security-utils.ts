@@ -39,3 +39,15 @@ export function computeDigitalSignature(hash: string): string {
 export function generateVerificationCode(): string {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
+
+/**
+ * Computes a digital signature (HMAC-SHA256) for an invoice number to prevent public enumeration.
+ */
+export function signInvoiceNumber(invoiceNumber: string): string {
+  const secret = process.env.RECEIPT_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('RECEIPT_SIGNING_SECRET environment variable is not set.');
+  }
+  return crypto.createHmac('sha256', secret).update(invoiceNumber).digest('hex').slice(0, 16);
+}
+
