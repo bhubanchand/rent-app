@@ -23,28 +23,55 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanCode = code.trim().toUpperCase();
+
+    // Prevent querying and false positives if Supabase keys are missing or invalid (dummy mode)
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      (!process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('http://') &&
+        !process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://'))
+    ) {
+      return NextResponse.json({
+        status: 'INVALID',
+        message: 'Cryptographic verification ledger is currently offline. Connection parameters are not configured.'
+      });
+    }
+
     const adminSupabase = createAdminClient();
 
     // 2. Search in Receipts (by verification_code or receipt_number)
     const { data: receipt, error: receiptError } = await adminSupabase
       .from('receipts')
       .select(`
+        id,
         receipt_number,
         verification_code,
+        sha256_hash,
+        digital_signature,
+        created_at,
         payment:payments(
           amount,
           payment_date,
+          payment_method,
+          transaction_id,
           invoice:invoices(
-            customer:customers(full_name)
+            invoice_number,
+            customer:customers(
+              full_name,
+              company_name,
+              email,
+              phone
+            )
           )
         )
       `)
       .or(`verification_code.eq.${cleanCode},receipt_number.eq.${cleanCode}`)
       .maybeSingle();
 
-    if (receipt) {
+    if (receipt && !Array.isArray(receipt) && receipt.receipt_number) {
       const payment: any = receipt.payment;
-      const customerName = payment?.invoice?.customer?.full_name || 'N/A';
+      const customer: any = payment?.invoice?.customer;
+      const customerName = customer?.full_name || 'N/A';
       
       // Log verification event
       await adminSupabase.from('audit_logs').insert([
@@ -63,7 +90,28 @@ export async function POST(request: NextRequest) {
         customerName,
         amount: payment?.amount || 0,
         date: payment?.payment_date || '',
-        statusText: 'Paid'
+        statusText: 'Paid',
+        details: {
+          receipt_number: receipt.receipt_number,
+          verification_code: receipt.verification_code,
+          sha256_hash: receipt.sha255_hash || receipt.sha256_hash,
+          digital_signature: receipt.digital_signature,
+          payment: {
+            amount: payment?.amount || 0,
+            payment_date: payment?.payment_date || '',
+            payment_method: payment?.payment_method || 'cash',
+            transaction_id: payment?.transaction_id || null,
+            invoice: {
+              invoice_number: payment?.invoice?.invoice_number || 'N/A'
+            }
+          },
+          customer: {
+            full_name: customer?.full_name || 'N/A',
+            company_name: customer?.company_name || null,
+            email: customer?.email || '',
+            phone: customer?.phone || null
+          }
+        }
       });
     }
 
@@ -71,16 +119,32 @@ export async function POST(request: NextRequest) {
     const { data: invoice, error: invoiceError } = await adminSupabase
       .from('invoices')
       .select(`
+        id,
         invoice_number,
         amount,
+        currency,
         issue_date,
+        due_date,
+        description,
         status,
-        customer:customers(full_name)
+        customer:customers(
+          full_name,
+          company_name,
+          email,
+          phone,
+          address,
+          gst_number
+        ),
+        payments(
+          amount,
+          payment_date,
+          payment_method
+        )
       `)
       .eq('invoice_number', cleanCode)
       .maybeSingle();
 
-    if (invoice) {
+    if (invoice && !Array.isArray(invoice) && invoice.invoice_number) {
       const customer: any = invoice.customer;
       
       // Log verification event
@@ -100,7 +164,25 @@ export async function POST(request: NextRequest) {
         customerName: customer?.full_name || 'N/A',
         amount: invoice.amount,
         date: invoice.issue_date,
-        statusText: invoice.status.replace('_', ' ')
+        statusText: invoice.status.replace('_', ' '),
+        details: {
+          invoice_number: invoice.invoice_number,
+          amount: invoice.amount,
+          currency: invoice.currency || 'INR',
+          issue_date: invoice.issue_date,
+          due_date: invoice.due_date,
+          description: invoice.description,
+          status: invoice.status,
+          customer: {
+            full_name: customer?.full_name || 'N/A',
+            company_name: customer?.company_name || null,
+            email: customer?.email || '',
+            phone: customer?.phone || null,
+            address: customer?.address || null,
+            gst_number: customer?.gst_number || null
+          },
+          payments: invoice.payments || []
+        }
       });
     }
 
@@ -127,3 +209,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
