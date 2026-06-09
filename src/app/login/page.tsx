@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,21 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function checkFirstLaunch() {
+      try {
+        const response = await fetch('/api/setup');
+        const data = await response.json();
+        if (data.isFirstLaunch) {
+          router.push('/setup');
+        }
+      } catch (err) {
+        console.error('Failed to query setup status.');
+      }
+    }
+    checkFirstLaunch();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

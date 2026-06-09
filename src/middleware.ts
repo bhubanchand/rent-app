@@ -7,6 +7,8 @@ export async function middleware(request: NextRequest) {
   // 1. Define route groups
   const isPublicRoute =
     pathname === '/login' ||
+    pathname === '/setup' ||
+    pathname === '/api/setup' ||
     pathname.startsWith('/share') ||
     pathname.startsWith('/verify') ||
     pathname.startsWith('/api/verify-code') ||
