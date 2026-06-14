@@ -156,10 +156,10 @@ export default function LoginPage() {
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
               {initError && (
-                <div className="p-3.5 rounded-xl border border-rose-900/50 bg-rose-950/30 text-rose-200 text-xs flex items-start space-x-2.5">
+                <div className="p-3.5 rounded-xl border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200 text-xs flex items-start space-x-2.5">
                   <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="font-semibold text-rose-300">Integration Configuration Error</p>
+                    <p className="font-semibold text-rose-600 dark:text-rose-300">Integration Configuration Error</p>
                     <p className="leading-normal">{initError}</p>
                     <p className="pt-1">
                       Check variables or run the{' '}
@@ -172,7 +172,7 @@ export default function LoginPage() {
               )}
               
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-300 font-medium">Email Address</Label>
+                <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4.5 w-4.5 text-slate-500" />
                   <Input
@@ -181,14 +181,14 @@ export default function LoginPage() {
                     placeholder="admin@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-600 rounded-lg py-5.5"
+                    className="pl-10 bg-slate-50 dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 rounded-lg py-5.5"
                     disabled={loading || !!initError}
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-300 font-medium">Password</Label>
+                <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 font-medium">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4.5 w-4.5 text-slate-500" />
                   <Input
@@ -197,7 +197,7 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-600 rounded-lg py-5.5"
+                    className="pl-10 bg-slate-50 dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 rounded-lg py-5.5"
                     disabled={loading || !!initError}
                     required
                   />
@@ -224,7 +224,7 @@ export default function LoginPage() {
                   type="button"
                   variant="outline"
                   onClick={() => router.push('/debug/supabase')}
-                  className="w-full border-slate-800 bg-slate-900/60 hover:bg-slate-800 text-slate-300 py-6 rounded-lg"
+                  className="w-full border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 py-6 rounded-lg"
                 >
                   Open Integration Diagnostics
                 </Button>
