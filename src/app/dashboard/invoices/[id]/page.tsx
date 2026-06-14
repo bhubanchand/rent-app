@@ -219,6 +219,53 @@ export default function InvoiceDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleDeletePayment = async (paymentId: string, amount: number, receiptNumber?: string) => {
+    if (!invoice) return;
+
+    const label = receiptNumber ? `receipt ${receiptNumber}` : 'this payment record';
+    const confirm = window.confirm(`Are you sure you want to permanently delete ${label} of ₹${amount}? This will update the invoice balance and status.`);
+    if (!confirm) return;
+
+    try {
+      // 1. Calculate new status based on remaining payments
+      const remainingPayments = (invoice.payments || []).filter((p) => p.id !== paymentId);
+      const newPaidTotal = remainingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      let newStatus = invoice.status;
+      if (invoice.status !== 'cancelled' && invoice.status !== 'draft') {
+        if (newPaidTotal >= Number(invoice.amount) - 0.01) {
+          newStatus = 'paid';
+        } else if (newPaidTotal > 0) {
+          newStatus = 'partially_paid';
+        } else {
+          const isOverdue = new Date(invoice.due_date).getTime() < Date.now();
+          newStatus = isOverdue ? 'overdue' : 'pending';
+        }
+      }
+
+      // 2. Update invoice status
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({ status: newStatus })
+        .eq('id', invoiceId);
+
+      if (updateError) throw updateError;
+
+      // 3. Delete the payment
+      const { error: deleteError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (deleteError) throw deleteError;
+
+      toast.success('Payment/Receipt deleted successfully.');
+      fetchInvoiceDetails();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete payment.');
+    }
+  };
+
   // Submit Partial Payment
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,24 +784,34 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                             ₹{Number(p.amount).toLocaleString('en-IN')}
                           </td>
                           <td className="p-4 text-right">
-                            {p.receipt && (
-                              <div className="flex justify-end gap-1.5">
-                                <Button
-                                  onClick={() => downloadReceiptPdf(p)}
-                                  variant="ghost"
-                                  className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Download className="h-3 w-3" /> PDF
-                                </Button>
-                                <Button
-                                  onClick={() => printReceiptPdf(p)}
-                                  variant="ghost"
-                                  className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Printer className="h-3 w-3" /> Print
-                                </Button>
-                              </div>
-                            )}
+                            <div className="flex justify-end gap-1.5">
+                              {p.receipt && (
+                                <>
+                                  <Button
+                                    onClick={() => downloadReceiptPdf(p)}
+                                    variant="ghost"
+                                    className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Download className="h-3 w-3" /> PDF
+                                  </Button>
+                                  <Button
+                                    onClick={() => printReceiptPdf(p)}
+                                    variant="ghost"
+                                    className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Printer className="h-3 w-3" /> Print
+                                  </Button>
+                                </>
+                              )}
+                              <Button
+                                onClick={() => handleDeletePayment(p.id, p.amount, p.receipt?.receipt_number)}
+                                variant="ghost"
+                                className="h-8 w-8 p-0 border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-500 rounded-lg flex items-center justify-center cursor-pointer"
+                                title="Delete Payment/Receipt"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}

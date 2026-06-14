@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Printer,
   Share2,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { buildReceiptPdfDoc, generateReceiptPdf } from '@/lib/pdf-generator';
 
@@ -253,6 +254,72 @@ export default function ReceiptsPage() {
     }
   };
 
+  const handleDeleteReceipt = async (receipt: ReceiptItem) => {
+    const paymentId = receipt.payment?.id;
+    const invoiceId = receipt.payment?.invoice?.id;
+
+    if (!paymentId || !invoiceId) {
+      toast.error('Invalid receipt data, cannot delete.');
+      return;
+    }
+
+    const confirm = window.confirm(`Are you sure you want to delete receipt ${receipt.receipt_number}? This will delete the payment of ₹${receipt.payment.amount} and recalculate the status of invoice ${receipt.payment.invoice.invoice_number}.`);
+    if (!confirm) return;
+
+    try {
+      toast.loading('Deleting receipt and updating invoice...');
+      
+      // 1. Fetch the invoice and its payments (excluding the current payment)
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from('invoices')
+        .select('amount, due_date, status, payments(id, amount)')
+        .eq('id', invoiceId)
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      const payments = invoiceData.payments || [];
+      const remainingPayments = payments.filter((p: any) => p.id !== paymentId);
+      const newPaidTotal = remainingPayments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+
+      // Determine new status
+      let newStatus = invoiceData.status;
+      if (invoiceData.status !== 'cancelled' && invoiceData.status !== 'draft') {
+        if (newPaidTotal >= Number(invoiceData.amount) - 0.01) {
+          newStatus = 'paid';
+        } else if (newPaidTotal > 0) {
+          newStatus = 'partially_paid';
+        } else {
+          const isOverdue = new Date(invoiceData.due_date).getTime() < Date.now();
+          newStatus = isOverdue ? 'overdue' : 'pending';
+        }
+      }
+
+      // 2. Update invoice status
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({ status: newStatus })
+        .eq('id', invoiceId);
+
+      if (updateError) throw updateError;
+
+      // 3. Delete the payment (will cascade and delete receipt)
+      const { error: deleteError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (deleteError) throw deleteError;
+
+      toast.dismiss();
+      toast.success(`Receipt ${receipt.receipt_number} has been deleted.`);
+      fetchReceipts();
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || 'Failed to delete receipt.');
+    }
+  };
+
   // Filter & Search Logic
   const filteredReceipts = receipts.filter((receipt) => {
     const customer = receipt.payment?.invoice?.customer;
@@ -474,6 +541,15 @@ export default function ReceiptsPage() {
                             >
                               <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
+
+                            <Button
+                              onClick={() => handleDeleteReceipt(receipt)}
+                              variant="ghost"
+                              className="h-8 w-8 p-0 border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-500 cursor-pointer"
+                              title="Delete Receipt"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -560,6 +636,13 @@ export default function ReceiptsPage() {
                             <Share2 className="h-3.5 w-3.5" /> Share
                           </>
                         )}
+                      </Button>
+
+                      <Button
+                        onClick={() => handleDeleteReceipt(receipt)}
+                        className="flex-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-755 dark:text-slate-350 hover:text-red-600 dark:hover:text-red-500 text-xs py-2 h-auto flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
                       </Button>
                     </div>
                   </div>
