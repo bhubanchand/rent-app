@@ -366,13 +366,39 @@ function InvoicesContent() {
                     <span className="text-slate-550 dark:text-slate-400 flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5 text-slate-400 dark:text-slate-600 shrink-0" /> Due: {invoice.due_date}
                     </span>
-                    <span
-                      className={`px-2 py-0.5 border text-[9px] font-semibold rounded-full uppercase ${
-                        statusColors[invoice.status]
-                      }`}
-                    >
-                      {invoice.status.replace('_', ' ')}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`px-2 py-0.5 border text-[9px] font-semibold rounded-full uppercase ${
+                          statusColors[invoice.status]
+                        }`}
+                      >
+                        {invoice.status.replace('_', ' ')}
+                      </span>
+                      {invoice.status !== 'cancelled' && invoice.status !== 'paid' && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const confirm = window.confirm(`Are you sure you want to cancel invoice ${invoice.invoice_number}?`);
+                            if (!confirm) return;
+                            try {
+                              const { error } = await supabase
+                                .from('invoices')
+                                .update({ status: 'cancelled' })
+                                .eq('id', invoice.id);
+                              if (error) throw error;
+                              toast.success(`Invoice ${invoice.invoice_number} has been cancelled.`);
+                              fetchData();
+                            } catch (err: any) {
+                              toast.error(err.message || 'Failed to cancel invoice.');
+                            }
+                          }}
+                          className="text-[10px] text-red-650 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold border border-red-200 dark:border-red-950/40 hover:bg-red-50 dark:hover:bg-red-950/20 px-2 py-0.5 rounded-full transition-colors"
+                          title="Cancel Invoice"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Summary of invoice math */}

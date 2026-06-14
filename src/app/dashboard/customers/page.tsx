@@ -23,6 +23,7 @@ import {
   ChevronRight,
   TrendingDown,
   Info,
+  Trash2,
 } from 'lucide-react';
 
 type Customer = {
@@ -180,6 +181,32 @@ function CustomersContent() {
       toast.error(err.message || 'Failed to save customer.');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleDeleteCustomer = async (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation();
+    const invoicesCount = customer.invoices?.length || 0;
+    const hasInvoices = invoicesCount > 0;
+    const message = hasInvoices
+      ? `WARNING: Customer "${customer.full_name}" has ${invoicesCount} invoices. Deleting this customer will permanently delete the customer profile and ALL associated invoices, payments, and receipts.\n\nType DELETE to confirm:`
+      : `Are you sure you want to delete customer "${customer.full_name}"? This action cannot be undone.\n\nType DELETE to confirm:`;
+
+    const input = window.prompt(message);
+    if (input !== 'DELETE') {
+      if (input !== null) {
+        toast.error('Deletion cancelled. You must type DELETE to confirm.');
+      }
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('customers').delete().eq('id', customer.id);
+      if (error) throw error;
+      toast.success(`Customer "${customer.full_name}" has been deleted.`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer.');
     }
   };
 
@@ -362,7 +389,16 @@ function CustomersContent() {
                       </CardDescription>
                     )}
                   </div>
-                  <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500 group-hover:translate-x-1 transition-transform shrink-0 self-center" />
+                  <div className="flex items-center gap-1 shrink-0 self-center">
+                    <button
+                      onClick={(e) => handleDeleteCustomer(e, customer)}
+                      className="p-1.5 text-slate-400 hover:text-red-655 dark:hover:text-red-450 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                      title="Delete Customer"
+                    >
+                      <Trash2 className="h-4.5 w-4.5" />
+                    </button>
+                    <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-3 flex-1 flex flex-col justify-between">
                   <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1">

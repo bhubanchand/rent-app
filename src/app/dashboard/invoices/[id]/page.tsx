@@ -27,6 +27,8 @@ import {
   QrCode,
   Check,
   Building,
+  Trash2,
+  Ban,
 } from 'lucide-react';
 import { generateInvoicePdf, generateReceiptPdf, buildInvoicePdfDoc, buildReceiptPdfDoc } from '@/lib/pdf-generator';
 
@@ -181,6 +183,39 @@ export default function InvoiceDetailPage({ params }: PageProps) {
       toast.error(err.message || 'Failed to update invoice status.');
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  // Delete Invoice
+  const handleDeleteInvoice = async () => {
+    if (!invoice) return;
+    
+    // Safety checks
+    if (invoice.status !== 'draft' && invoice.status !== 'cancelled') {
+      toast.error('Only draft or cancelled invoices can be deleted. Change the invoice status first.');
+      return;
+    }
+
+    const hasPayments = invoice.payments && invoice.payments.length > 0;
+    if (hasPayments) {
+      toast.error('Cannot delete invoice with recorded payments. Please delete all payments first.');
+      return;
+    }
+
+    const confirm = window.confirm(`Are you sure you want to permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`);
+    if (!confirm) return;
+
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .delete()
+        .eq('id', invoiceId);
+
+      if (error) throw error;
+      toast.success(`Invoice ${invoice.invoice_number} has been deleted.`);
+      router.push('/dashboard/invoices');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete invoice.');
     }
   };
 
@@ -512,6 +547,29 @@ export default function InvoiceDetailPage({ params }: PageProps) {
             <Printer className="h-4 w-4" />
             Print Invoice
           </Button>
+
+          {invoice.status !== 'cancelled' && invoice.status !== 'paid' && (
+            <Button
+              onClick={() => handleUpdateStatus('cancelled')}
+              variant="outline"
+              className="border-red-200 dark:border-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-650 dark:text-red-400 rounded-xl py-5 flex items-center gap-1.5 active:scale-95 transition-transform"
+              disabled={statusLoading}
+            >
+              <Ban className="h-4 w-4" />
+              Cancel Invoice
+            </Button>
+          )}
+
+          {(invoice.status === 'draft' || invoice.status === 'cancelled') && (!invoice.payments || invoice.payments.length === 0) && (
+            <Button
+              onClick={handleDeleteInvoice}
+              variant="outline"
+              className="border-red-200 dark:border-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-650 dark:text-red-400 rounded-xl py-5 flex items-center gap-1.5 active:scale-95 transition-transform"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Invoice
+            </Button>
+          )}
         </div>
       </div>
 

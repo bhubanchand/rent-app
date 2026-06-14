@@ -31,6 +31,7 @@ import {
   UserCheck,
   Edit2,
   Copy,
+  Trash2,
 } from 'lucide-react';
 
 type Invoice = {
@@ -361,6 +362,30 @@ export default function CustomerDetailPage({ params }: PageProps) {
     toast.success('Portal link copied to clipboard!');
   };
 
+  const handleDeleteCustomer = async () => {
+    const hasInvoices = invoices.length > 0;
+    const message = hasInvoices
+      ? `WARNING: Customer "${customer?.full_name}" has ${invoices.length} invoices. Deleting this customer will permanently delete the customer profile and ALL associated invoices, payments, and receipts.\n\nType DELETE to confirm:`
+      : `Are you sure you want to delete customer "${customer?.full_name}"? This action cannot be undone.\n\nType DELETE to confirm:`;
+
+    const input = window.prompt(message);
+    if (input !== 'DELETE') {
+      if (input !== null) {
+        toast.error('Deletion cancelled. You must type DELETE to confirm.');
+      }
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('customers').delete().eq('id', customerId);
+      if (error) throw error;
+      toast.success(`Customer "${customer?.full_name}" has been deleted.`);
+      router.push('/dashboard/customers');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer.');
+    }
+  };
+
   // Compute stats
   const totalInvoiced = invoices
     .filter((i) => i.status !== 'cancelled')
@@ -380,10 +405,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
   if (!customer) {
     return (
-      <div className="text-center py-20">
-        <ChevronLeft className="h-5 w-5 text-slate-500 cursor-pointer mb-4" onClick={() => router.back()} />
-        <h2 className="text-xl font-bold text-white">Customer dossier not found</h2>
-        <p className="text-slate-400 mt-2">The requested record does not exist or has been deleted.</p>
+      <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm mx-auto mt-12 shadow-sm">
+        <ChevronLeft className="h-5 w-5 text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-white cursor-pointer mb-4 mx-auto" onClick={() => router.push('/dashboard/customers')} />
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Customer dossier not found</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs">The requested record does not exist or has been deleted.</p>
       </div>
     );
   }
@@ -391,52 +416,64 @@ export default function CustomerDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.push('/dashboard/customers')}
-          className="p-2 hover:bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-all active:scale-95 shrink-0"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <div className="min-w-0">
-          <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-semibold">Customer Dossier</span>
-          <h1 className="text-2xl font-bold text-white truncate">{customer.full_name}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/dashboard/customers')}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-all active:scale-95 shrink-0"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <span className="text-[10px] text-indigo-650 dark:text-indigo-400 uppercase tracking-widest font-semibold block">Customer Dossier</span>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{customer.full_name}</h1>
+          </div>
         </div>
-        <Button
-          onClick={() => setEditDialogOpen(true)}
-          variant="outline"
-          className="ml-auto border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl flex items-center gap-2 active:scale-95"
-        >
-          <Edit2 className="h-4 w-4" />
-          Edit Profile
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => setEditDialogOpen(true)}
+            variant="outline"
+            className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl flex items-center gap-2 active:scale-95 py-5"
+          >
+            <Edit2 className="h-4 w-4" />
+            Edit Profile
+          </Button>
+          <Button
+            onClick={handleDeleteCustomer}
+            variant="outline"
+            className="border-red-200 dark:border-red-950/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-650 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 rounded-xl flex items-center gap-2 active:scale-95 py-5"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Customer
+          </Button>
+        </div>
       </div>
 
       {/* Metrics Summary Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-slate-900 border-slate-800 text-white">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm">
           <CardContent className="p-5 flex flex-col justify-center">
             <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 text-indigo-400" />
+              <FileText className="h-3.5 w-3.5 text-indigo-650 dark:text-indigo-400" />
               Total Invoiced
             </span>
-            <span className="text-2xl font-bold mt-2">
+            <span className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
               ₹{totalInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800 text-white">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm">
           <CardContent className="p-5 flex flex-col justify-center">
             <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-450" />
               Total Collected
             </span>
-            <span className="text-2xl font-bold mt-2 text-emerald-400">
+            <span className="text-2xl font-bold mt-2 text-emerald-600 dark:text-emerald-400">
               ₹{totalCollected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800 text-white">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm">
           <CardContent className="p-5 flex flex-col justify-center">
             <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-amber-500" />
@@ -444,7 +481,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </span>
             <span
               className={`text-2xl font-bold mt-2 ${
-                outstandingBalance > 0 ? 'text-amber-500' : 'text-slate-400'
+                outstandingBalance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               ₹{outstandingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -457,52 +494,52 @@ export default function CustomerDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Core Information Card */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <UserCheck className="h-5 w-5 text-indigo-400" /> Profile Information
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-indigo-650 dark:text-indigo-400" /> Profile Information
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
               <div className="space-y-1.5">
                 <span className="text-xs text-slate-500 uppercase tracking-wider block">Company</span>
-                <span className="font-semibold text-white flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-slate-600 shrink-0" />
+                <span className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-slate-450 dark:text-slate-500 shrink-0" />
                   {customer.company_name || 'N/A'}
                 </span>
               </div>
               <div className="space-y-1.5">
                 <span className="text-xs text-slate-500 uppercase tracking-wider block">GST Number</span>
-                <span className="font-mono text-white bg-slate-950 px-2 py-0.5 border border-slate-800 rounded inline-block">
+                <span className="font-mono text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 px-2 py-0.5 border border-slate-200 dark:border-slate-800 rounded inline-block">
                   {customer.gst_number || 'N/A'}
                 </span>
               </div>
               <div className="space-y-1.5">
                 <span className="text-xs text-slate-500 uppercase tracking-wider block">Phone Number</span>
                 <span className="text-slate-900 dark:text-white flex items-center gap-2 font-medium">
-                  <Phone className="h-4 w-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  <Phone className="h-4 w-4 text-slate-450 dark:text-slate-600 shrink-0" />
                   {customer.phone_number || customer.phone || 'N/A'}
                 </span>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <span className="text-xs text-slate-500 uppercase tracking-wider block">Billing Address</span>
-                <span className="text-white flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <span className="text-slate-800 dark:text-white flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-slate-450 dark:text-slate-650 mt-0.5 shrink-0" />
                   {customer.address || 'N/A'}
                 </span>
               </div>
 
               {/* Custom fields data */}
               {customer.custom_fields && Object.keys(customer.custom_fields).length > 0 && (
-                <div className="sm:col-span-2 border-t border-slate-800 pt-4 mt-2 space-y-4">
-                  <span className="text-xs text-indigo-400 font-semibold block uppercase tracking-wider">
+                <div className="sm:col-span-2 border-t border-slate-100 dark:border-slate-800 pt-4 mt-2 space-y-4">
+                  <span className="text-xs text-indigo-650 dark:text-indigo-400 font-semibold block uppercase tracking-wider">
                     Dynamic Custom Fields
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {Object.entries(customer.custom_fields).map(([key, val]) => (
                       <div key={key} className="space-y-1.5">
                         <span className="text-xs text-slate-500 uppercase tracking-wider block">{key}</span>
-                        <span className="font-semibold text-white">{String(val)}</span>
+                        <span className="font-semibold text-slate-800 dark:text-white">{String(val)}</span>
                       </div>
                     ))}
                   </div>
@@ -512,14 +549,14 @@ export default function CustomerDetailPage({ params }: PageProps) {
           </Card>
 
           {/* Invoices List */}
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <FileText className="h-5 w-5 text-indigo-400" /> Invoices
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileText className="h-5 w-5 text-indigo-650 dark:text-indigo-400" /> Invoices
               </CardTitle>
               <Button
                 onClick={() => router.push(`/dashboard/invoices?create=true&customer_id=${customerId}`)}
-                className="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold py-1.5 px-3 rounded-lg active:scale-95"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs text-slate-700 dark:text-slate-350 font-semibold py-1.5 px-3 rounded-lg active:scale-95"
               >
                 + New Invoice
               </Button>
@@ -531,7 +568,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead>
-                      <tr className="border-b border-slate-800 text-slate-400 text-xs font-semibold uppercase bg-slate-950/20">
+                      <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-455 text-xs font-semibold uppercase bg-slate-50/50 dark:bg-slate-950/20">
                         <th className="p-4">Invoice #</th>
                         <th className="p-4">Amount</th>
                         <th className="p-4">Due Date</th>
@@ -541,23 +578,23 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <tbody>
                       {invoices.map((inv) => {
                         const statusColors = {
-                          draft: 'bg-slate-800 text-slate-400 border-slate-700',
-                          pending: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-                          partially_paid: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-                          paid: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-                          overdue: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-                          cancelled: 'bg-red-950/30 text-red-500 border-red-900/30',
+                          draft: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+                          pending: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20',
+                          partially_paid: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-100 dark:border-amber-500/20',
+                          paid: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20',
+                          overdue: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20',
+                          cancelled: 'bg-red-50 dark:bg-red-950/30 text-red-650 dark:text-red-500 border-red-100 dark:border-red-900/30',
                         };
 
                         return (
                           <tr
                             key={inv.id}
                             onClick={() => router.push(`/dashboard/invoices/${inv.id}`)}
-                            className="border-b border-slate-800/60 hover:bg-slate-800/40 cursor-pointer transition-colors"
+                            className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
                           >
-                            <td className="p-4 font-bold text-white">{inv.invoice_number}</td>
+                            <td className="p-4 font-bold text-slate-900 dark:text-white">{inv.invoice_number}</td>
                             <td className="p-4">₹{Number(inv.amount).toLocaleString('en-IN')}</td>
-                            <td className="p-4 text-slate-400 text-xs">{inv.due_date}</td>
+                            <td className="p-4 text-slate-500 dark:text-slate-400 text-xs">{inv.due_date}</td>
                             <td className="p-4">
                               <span
                                 className={`px-2 py-0.5 border text-[10px] font-semibold rounded-full uppercase ${
@@ -581,21 +618,21 @@ export default function CustomerDetailPage({ params }: PageProps) {
         {/* Customer Portal Signed Link & Timeline */}
         <div className="space-y-6">
           {/* Signed Portal Link Panel */}
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3">
-              <CardTitle className="text-md font-bold text-white flex items-center gap-2">
-                <Share2 className="h-4.5 w-4.5 text-indigo-400" /> Customer Share Portal
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <CardTitle className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Share2 className="h-4.5 w-4.5 text-indigo-655 dark:text-indigo-400" /> Customer Share Portal
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4 text-xs">
-              <p className="text-slate-400 leading-relaxed text-[11px]">
+              <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-[11px]">
                 Create a secure signed access link where the customer can view their invoices, payments, and balances without logging in.
               </p>
 
               {shareLink ? (
                 <div className="space-y-4">
-                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-400 truncate text-[10px]">
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-600 dark:text-slate-400 truncate text-[10px]">
                       {shareLink.is_active ? 'Portal is Active' : 'Portal is Disabled'}
                     </span>
                     <span
@@ -608,7 +645,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   <div className="flex gap-2">
                     <Button
                       onClick={copyShareUrl}
-                      className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-4 flex items-center justify-center gap-1.5 rounded-lg active:scale-95"
+                      className="flex-1 bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-4 flex items-center justify-center gap-1.5 rounded-lg active:scale-95 shadow-sm"
                       disabled={!shareLink.is_active}
                     >
                       <Copy className="h-3.5 w-3.5" /> Copy Link
@@ -619,28 +656,28 @@ export default function CustomerDetailPage({ params }: PageProps) {
                         window.open(`${baseUrl}/share/${shareLink.token}`, '_blank');
                       }}
                       variant="outline"
-                      className="border-slate-800 hover:bg-slate-800 text-slate-300 rounded-lg"
+                      className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-705 dark:text-slate-305 rounded-lg"
                       disabled={!shareLink.is_active}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
                   </div>
 
-                  <div className="space-y-2 border-t border-slate-800 pt-3 mt-1">
-                    <div className="flex justify-between items-center text-[10px] text-slate-500">
+                  <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-1">
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-500">
                       <span>Expires</span>
                       <span>{shareLink.expires_at ? new Date(shareLink.expires_at).toLocaleDateString() : 'Never'}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-2 border-t border-slate-800 pt-3 mt-1">
+                  <div className="flex flex-col sm:flex-row gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-1">
                     <Button
                       onClick={handleToggleShareLink}
                       variant="ghost"
                       className={`flex-1 text-[11px] font-semibold border ${
                         shareLink.is_active
-                          ? 'border-red-500/20 text-red-400 hover:bg-red-950/20'
-                          : 'border-emerald-500/20 text-emerald-400 hover:bg-emerald-950/20'
+                          ? 'border-red-500/20 text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20'
+                          : 'border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20'
                       }`}
                       disabled={shareLoading}
                     >
@@ -649,7 +686,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
                     <Button
                       onClick={handleGenerateShareLink}
                       variant="ghost"
-                      className="flex-1 text-[11px] font-semibold border border-slate-800 text-slate-300 hover:bg-slate-800"
+                      className="flex-1 text-[11px] font-semibold border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                       disabled={shareLoading}
                     >
                       Regenerate
@@ -659,7 +696,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
               ) : (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="expiry" className="text-slate-400 text-[10px] font-semibold">
+                    <Label htmlFor="expiry" className="text-slate-505 dark:text-slate-400 text-[10px] font-semibold">
                       Expiration Date (Optional)
                     </Label>
                     <Input
@@ -667,12 +704,12 @@ export default function CustomerDetailPage({ params }: PageProps) {
                       type="date"
                       value={expiryInput}
                       onChange={(e) => setExpiryInput(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-white text-xs py-4"
+                      className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs py-4"
                     />
                   </div>
                   <Button
                     onClick={handleGenerateShareLink}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-5 flex items-center justify-center gap-2 rounded-lg"
+                    className="w-full bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-5 flex items-center justify-center gap-2 rounded-lg shadow-sm"
                     disabled={shareLoading}
                   >
                     {shareLoading ? (
@@ -687,23 +724,23 @@ export default function CustomerDetailPage({ params }: PageProps) {
           </Card>
 
           {/* Activity Timeline */}
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3">
-              <CardTitle className="text-md font-bold text-white flex items-center gap-2">
-                <History className="h-4.5 w-4.5 text-indigo-400" /> Activity Timeline
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <CardTitle className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <History className="h-4.5 w-4.5 text-indigo-655 dark:text-indigo-400" /> Activity Timeline
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 max-h-[350px] overflow-y-auto space-y-4">
               {timeline.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-xs">No activity logs recorded.</div>
               ) : (
-                <div className="relative pl-4 border-l border-slate-800 space-y-4">
+                <div className="relative pl-4 border-l border-slate-200 dark:border-slate-800 space-y-4">
                   {timeline.map((event, idx) => {
                     const icons = {
-                      created: 'bg-indigo-950 border-indigo-700 text-indigo-400',
-                      invoice: 'bg-blue-950 border-blue-700 text-blue-400',
-                      payment: 'bg-emerald-950 border-emerald-700 text-emerald-400',
-                      share: 'bg-slate-850 border-slate-700 text-slate-400',
+                      created: 'bg-indigo-100 dark:bg-indigo-950 border-indigo-350 dark:border-indigo-750 text-indigo-600 dark:text-indigo-400',
+                      invoice: 'bg-blue-100 dark:bg-blue-950 border-blue-350 dark:border-blue-750 text-blue-600 dark:text-blue-400',
+                      payment: 'bg-emerald-100 dark:bg-emerald-950 border-emerald-350 dark:border-emerald-750 text-emerald-600 dark:text-emerald-400',
+                      share: 'bg-slate-100 dark:bg-slate-850 border-slate-350 dark:border-slate-700 text-slate-600 dark:text-slate-400',
                     };
 
                     return (
@@ -714,9 +751,9 @@ export default function CustomerDetailPage({ params }: PageProps) {
                           }`}
                         />
                         <div className="space-y-0.5">
-                          <p className="font-semibold text-white leading-tight">{event.title}</p>
-                          <p className="text-[10px] text-slate-400">{event.description}</p>
-                          <span className="text-[9px] text-slate-500 block mt-0.5">
+                          <p className="font-semibold text-slate-900 dark:text-white leading-tight">{event.title}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{event.description}</p>
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500 block mt-0.5">
                             {new Date(event.date).toLocaleString()}
                           </span>
                         </div>
@@ -732,17 +769,17 @@ export default function CustomerDetailPage({ params }: PageProps) {
 
       {/* Edit Customer Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-lg rounded-2xl">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white">Edit Customer Profile</DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs">
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Edit Customer Profile</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-xs">
               Update billing details or tags for this customer.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditCustomer} className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="editFullName" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="editFullName" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                   Full Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -750,12 +787,12 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="editCompanyName" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="editCompanyName" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                   Company Name
                 </Label>
                 <Input
@@ -763,13 +800,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   placeholder="ACME Corp"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="editPhone" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
+              <Label htmlFor="editPhone" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                 Phone Number <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -783,7 +820,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="editAddress" className="text-slate-300 font-medium text-xs">
+              <Label htmlFor="editAddress" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                 Billing Address
               </Label>
               <Textarea
@@ -791,13 +828,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 placeholder="Street address, City, State, ZIP"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white rounded-lg h-20 resize-none"
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg h-20 resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="editGstNumber" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="editGstNumber" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                   GST Number
                 </Label>
                 <Input
@@ -805,11 +842,11 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   placeholder="22AAAAA0000A1Z5"
                   value={gstNumber}
                   onChange={(e) => setGstNumber(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="editTagsInput" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="editTagsInput" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                   Tags (comma-separated)
                 </Label>
                 <Input
@@ -817,13 +854,13 @@ export default function CustomerDetailPage({ params }: PageProps) {
                   placeholder="VIP, monthly, retail"
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="editNotes" className="text-slate-300 font-medium text-xs">
+              <Label htmlFor="editNotes" className="text-slate-700 dark:text-slate-300 font-medium text-xs">
                 Internal Notes
               </Label>
               <Textarea
@@ -831,23 +868,23 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 placeholder="Internal details..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white rounded-lg h-20 resize-none"
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg h-20 resize-none"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-slate-800/60">
+            <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setEditDialogOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/40"
                 disabled={editLoading}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6"
+                className="bg-indigo-650 hover:bg-indigo-600 text-white font-semibold px-6 shadow-sm"
                 disabled={editLoading}
               >
                 {editLoading ? (

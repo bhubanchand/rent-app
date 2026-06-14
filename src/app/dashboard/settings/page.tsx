@@ -16,6 +16,9 @@ import {
   ShieldCheck,
   ToggleLeft,
   ToggleRight,
+  Download,
+  User,
+  Lock,
 } from 'lucide-react';
 
 type CustomFieldDefinition = {
@@ -38,6 +41,12 @@ export default function SettingsPage() {
   const [entityType, setEntityType] = useState<'customer' | 'invoice'>('customer');
   const [fieldType, setFieldType] = useState<'text' | 'number' | 'date' | 'boolean'>('text');
 
+  // Account States
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
   const fetchFields = async () => {
     setLoading(true);
     try {
@@ -57,7 +66,180 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchFields();
+    
+    // Fetch logged in user email
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || '');
+      }
+    };
+    fetchUser();
   }, [supabase]);
+
+  // Password Update
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success('Password updated successfully.');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update password.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  // CSV Exporter Helper
+  const downloadCSV = (headers: string[], rows: string[][], filename: string) => {
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) =>
+        row
+          .map((value) => {
+            const strVal = value === null || value === undefined ? '' : String(value);
+            if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
+              return `"${strVal.replace(/"/g, '""')}"`;
+            }
+            return strVal;
+          })
+          .join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportCustomers = async () => {
+    try {
+      const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.info('No customers found to export.');
+        return;
+      }
+
+      const headers = ['ID', 'Full Name', 'Company Name', 'Phone', 'Address', 'GST Number', 'Notes', 'Created At'];
+      const rows = data.map((c: any) => [
+        c.id,
+        c.full_name,
+        c.company_name || '',
+        c.phone_number || c.phone || '',
+        c.address || '',
+        c.gst_number || '',
+        c.notes || '',
+        c.created_at,
+      ]);
+
+      downloadCSV(headers, rows, 'bhuban_records_customers.csv');
+      toast.success('Customers exported to CSV successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export customers.');
+    }
+  };
+
+  const exportInvoices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*, customer:customers(full_name)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.info('No invoices found to export.');
+        return;
+      }
+
+      const headers = [
+        'ID',
+        'Invoice Number',
+        'Customer Name',
+        'Amount (INR)',
+        'Issue Date',
+        'Due Date',
+        'Status',
+        'Description',
+        'Created At',
+      ];
+      const rows = data.map((i: any) => [
+        i.id,
+        i.invoice_number,
+        (i.customer as any)?.full_name || 'N/A',
+        i.amount,
+        i.issue_date,
+        i.due_date,
+        i.status,
+        i.description || '',
+        i.created_at,
+      ]);
+
+      downloadCSV(headers, rows, 'bhuban_records_invoices.csv');
+      toast.success('Invoices exported to CSV successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export invoices.');
+    }
+  };
+
+  const exportPayments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*, invoice:invoices(invoice_number)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.info('No payments found to export.');
+        return;
+      }
+
+      const headers = [
+        'ID',
+        'Invoice Number',
+        'Payment Date',
+        'Amount (INR)',
+        'Payment Method',
+        'Transaction ID',
+        'Notes',
+        'Created At',
+      ];
+      const rows = data.map((p: any) => [
+        p.id,
+        (p.invoice as any)?.invoice_number || 'N/A',
+        p.payment_date,
+        p.amount,
+        p.payment_method,
+        p.transaction_id || '',
+        p.notes || '',
+        p.created_at,
+      ]);
+
+      downloadCSV(headers, rows, 'bhuban_records_payments.csv');
+      toast.success('Payments exported to CSV successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to export payments.');
+    }
+  };
 
   const handleAddField = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +390,78 @@ export default function SettingsPage() {
               </CardFooter>
             </form>
           </Card>
+
+          <Card className="bg-card border-border text-card-foreground mt-6">
+            <CardHeader>
+              <CardTitle className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <User className="h-4.5 w-4.5 text-indigo-500" />
+                Account Settings
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Manage email profile and update security password.
+              </CardDescription>
+            </CardHeader>
+            <form onSubmit={handlePasswordChange}>
+              <CardContent className="space-y-4 text-xs">
+                <div className="space-y-2">
+                  <Label className="text-slate-700 dark:text-slate-300 font-medium">
+                    Registered Email
+                  </Label>
+                  <Input
+                    value={userEmail || 'Loading email...'}
+                    disabled
+                    className="bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 rounded-lg py-5 cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="newPasswordInput" className="text-slate-700 dark:text-slate-300 font-medium">
+                    New Password
+                  </Label>
+                  <Input
+                    id="newPasswordInput"
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg py-5"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPasswordInput" className="text-slate-700 dark:text-slate-300 font-medium">
+                    Confirm Password
+                  </Label>
+                  <Input
+                    id="confirmPasswordInput"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg py-5"
+                    required
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="border-t border-border pt-4 mt-2">
+                <Button
+                  type="submit"
+                  className="w-full bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-5 rounded-lg flex items-center justify-center gap-1.5"
+                  disabled={passwordLoading}
+                >
+                  {passwordLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4" />
+                      Update Password
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
         </div>
 
         {/* List of Custom Fields */}
@@ -294,6 +548,49 @@ export default function SettingsPage() {
                     LOGGING
                   </span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Export Data Panel */}
+          <Card className="bg-card border-border text-card-foreground mt-6">
+            <CardHeader className="border-b border-border pb-3">
+              <CardTitle className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Database className="h-4.5 w-4.5 text-indigo-500" /> Export Records
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Export all financial ledger records as standard CSV files.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 text-xs space-y-4">
+              <p className="text-slate-550 dark:text-slate-400 leading-relaxed text-[11px]">
+                Extract full database tables directly into CSV spreadsheets. Export files include comprehensive fields and timestamps.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Button
+                  onClick={exportCustomers}
+                  variant="outline"
+                  className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-305 rounded-lg py-5 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                >
+                  <Download className="h-4 w-4 text-indigo-500" />
+                  Customers CSV
+                </Button>
+                <Button
+                  onClick={exportInvoices}
+                  variant="outline"
+                  className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-305 rounded-lg py-5 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                >
+                  <Download className="h-4 w-4 text-indigo-500" />
+                  Invoices CSV
+                </Button>
+                <Button
+                  onClick={exportPayments}
+                  variant="outline"
+                  className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-305 rounded-lg py-5 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
+                >
+                  <Download className="h-4 w-4 text-indigo-500" />
+                  Payments CSV
+                </Button>
               </div>
             </CardContent>
           </Card>
