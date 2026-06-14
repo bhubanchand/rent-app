@@ -57,6 +57,7 @@ type Payment = {
   invoice: {
     invoice_number: string;
     customer: {
+      id: string;
       full_name: string;
     };
   };
@@ -76,6 +77,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
   // Set mounted state to prevent hydration errors on charts
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function DashboardPage() {
       // 2. Fetch payments
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
-        .select('*, invoice:invoices(invoice_number, customer:customers(full_name))')
+        .select('*, invoice:invoices(invoice_number, customer:customers(id, full_name))')
         .order('payment_date', { ascending: false });
 
       if (paymentError) throw paymentError;
@@ -162,11 +164,65 @@ export default function DashboardPage() {
     return new Date(invoice.due_date).getTime() < Date.now();
   };
 
-  const totalOutstanding = invoices.reduce((sum, inv) => sum + getBalanceAmount(inv), 0);
-  const totalCollected = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const totalOverdue = invoices
+  // Helper to extract "MMM YY" (e.g. "Jun 26")
+  const getMonthYear = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+    } catch (e) {
+      return 'Unknown';
+    }
+  };
+
+  // Extract all available months from both invoices and payments
+  const availableMonths = (() => {
+    const monthsSet = new Set<string>();
+    invoices.forEach((inv) => {
+      if (inv.issue_date) {
+        monthsSet.add(getMonthYear(inv.issue_date));
+      }
+    });
+    payments.forEach((p) => {
+      if (p.payment_date) {
+        monthsSet.add(getMonthYear(p.payment_date));
+      }
+    });
+
+    return Array.from(monthsSet).sort((a, b) => {
+      const parseMonthYear = (str: string) => {
+        const [m, y] = str.split(' ');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthIndex = months.indexOf(m);
+        return new Date(2000 + parseInt(y), monthIndex, 1).getTime();
+      };
+      return parseMonthYear(b) - parseMonthYear(a); // Newest first
+    });
+  })();
+
+  // Filter lists based on selectedMonth selection
+  const filteredInvoices = selectedMonth === 'all'
+    ? invoices
+    : invoices.filter((inv) => getMonthYear(inv.issue_date) === selectedMonth);
+
+  const filteredPayments = selectedMonth === 'all'
+    ? payments
+    : payments.filter((p) => getMonthYear(p.payment_date) === selectedMonth);
+
+  // Filtered Math Summaries
+  const totalOutstanding = filteredInvoices.reduce((sum, inv) => sum + getBalanceAmount(inv), 0);
+  const totalCollected = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalOverdue = filteredInvoices
     .filter(isOverdue)
     .reduce((sum, inv) => sum + getBalanceAmount(inv), 0);
+
+  const activeCustomersCount = selectedMonth === 'all'
+    ? customers.length
+    : new Set(
+        [
+          ...filteredInvoices.map((inv) => inv.customer?.id),
+          ...filteredPayments.map((p) => p.invoice?.customer?.id)
+        ].filter(Boolean)
+      ).size;
 
   // Sorting helper for month-year charts (e.g. "Jun 26")
   const sortChronologically = (a: { month: string }, b: { month: string }) => {
@@ -228,7 +284,7 @@ export default function DashboardPage() {
   // Chart 4: Top Customer Rankings (Horizontal Bar Chart)
   const customerRankingsData = (() => {
     const rankingsMap: Record<string, number> = {};
-    invoices.forEach((inv) => {
+    filteredInvoices.forEach((inv) => {
       if (inv.status !== 'cancelled') {
         const name = inv.customer?.full_name || 'Unknown';
         rankingsMap[name] = (rankingsMap[name] || 0) + Number(inv.amount);
@@ -242,9 +298,9 @@ export default function DashboardPage() {
   })();
 
   // Tables
-  const recentInvoices = invoices.slice(0, 5);
-  const recentPayments = payments.slice(0, 5);
-  const overdueInvoicesList = invoices.filter(isOverdue).slice(0, 5);
+  const recentInvoices = filteredInvoices.slice(0, 5);
+  const recentPayments = filteredPayments.slice(0, 5);
+  const overdueInvoicesList = filteredInvoices.filter(isOverdue).slice(0, 5);
 
   if (loading) {
     return (
@@ -258,11 +314,30 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header section */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-          Dashboard
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Real-time collections, outstanding balances, and analytics</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="text-slate-505 dark:text-slate-400 text-sm mt-1">Real-time collections, outstanding balances, and analytics</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-550 dark:text-slate-400 font-semibold flex items-center gap-1 shrink-0">
+            <Calendar className="h-4 w-4 text-indigo-500" /> Filter Month:
+          </span>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs py-2 px-3 focus:outline-none focus:border-indigo-650 cursor-pointer shadow-sm"
+          >
+            <option value="all">All Time</option>
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Metrics Grid (6 cards) */}
@@ -312,10 +387,12 @@ export default function DashboardPage() {
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1">
               <Users className="h-3.5 w-3.5 text-indigo-500" /> Customers
             </span>
-            <span className="text-2xl font-bold mt-2 text-indigo-600 dark:text-indigo-400">
-              {customers.length}
+            <span className="text-2xl font-bold mt-2 text-indigo-650 dark:text-indigo-400">
+              {activeCustomersCount}
             </span>
-            <p className="text-[9px] text-muted-foreground mt-1">Active customer accounts</p>
+            <p className="text-[9px] text-muted-foreground mt-1">
+              {selectedMonth === 'all' ? 'Active customer accounts' : 'Customers active this month'}
+            </p>
           </CardContent>
         </Card>
 
@@ -325,10 +402,12 @@ export default function DashboardPage() {
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1">
               <FileText className="h-3.5 w-3.5 text-sky-500" /> Invoices
             </span>
-            <span className="text-2xl font-bold mt-2 text-sky-600 dark:text-sky-400">
-              {invoices.length}
+            <span className="text-2xl font-bold mt-2 text-sky-655 dark:text-sky-400">
+              {filteredInvoices.length}
             </span>
-            <p className="text-[9px] text-muted-foreground mt-1">Total invoices generated</p>
+            <p className="text-[9px] text-muted-foreground mt-1">
+              {selectedMonth === 'all' ? 'Total invoices generated' : 'Invoices issued this month'}
+            </p>
           </CardContent>
         </Card>
 
@@ -338,10 +417,12 @@ export default function DashboardPage() {
             <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1">
               <Receipt className="h-3.5 w-3.5 text-violet-500" /> Receipts
             </span>
-            <span className="text-2xl font-bold mt-2 text-violet-600 dark:text-violet-400">
-              {payments.length}
+            <span className="text-2xl font-bold mt-2 text-violet-605 dark:text-violet-400">
+              {filteredPayments.length}
             </span>
-            <p className="text-[9px] text-muted-foreground mt-1">Payments recorded in ledger</p>
+            <p className="text-[9px] text-muted-foreground mt-1">
+              {selectedMonth === 'all' ? 'Payments recorded in ledger' : 'Payments received this month'}
+            </p>
           </CardContent>
         </Card>
       </div>

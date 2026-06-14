@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
           transaction_id,
           invoice:invoices(
             invoice_number,
-            customer:customers(*)
+            customer:customers(id, full_name, company_name, email, phone, address)
           )
         )
       `)
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         due_date,
         description,
         status,
-        customer:customers(*),
+        customer:customers(id, full_name, company_name, email, phone, address, gst_number),
         payments(
           amount,
           payment_date,

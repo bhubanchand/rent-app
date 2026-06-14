@@ -106,7 +106,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         .from('invoices')
         .select(`
           *,
-          customer:customers(*),
+          customer:customers(id, full_name, company_name, email, phone, address, gst_number),
           payments(*, receipt:receipts(*))
         `)
         .eq('id', invoiceId)

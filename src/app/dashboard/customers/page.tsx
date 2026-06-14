@@ -85,7 +85,7 @@ function CustomersContent() {
       // Fetch customers with invoices & payments
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
-        .select('*, invoices(id, amount, status, payments(amount))');
+        .select('id, full_name, company_name, email, phone, address, gst_number, notes, tags, custom_fields, created_at, updated_at, invoices(id, amount, status, payments(amount))');
 
       if (customerError) throw customerError;
 
@@ -151,16 +151,16 @@ function CustomersContent() {
       // Try inserting with phone_number first, fallback to phone if column doesn't exist yet
       let data, error;
       try {
-        const res = await supabase.from('customers').insert([{ ...payload, phone_number: phone }]).select();
+        const res = await supabase.from('customers').insert([{ ...payload, phone_number: phone }]).select('id, full_name, company_name, email, phone, address, gst_number');
         data = res.data;
         error = res.error;
         if (error && (error.message?.includes('phone_number') || error.code === '42703')) {
-          const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select();
+          const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select('id, full_name, company_name, email, phone, address, gst_number');
           data = retryRes.data;
           error = retryRes.error;
         }
       } catch (err) {
-        const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select();
+        const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select('id, full_name, company_name, email, phone, address, gst_number');
         data = retryRes.data;
         error = retryRes.error;
       }

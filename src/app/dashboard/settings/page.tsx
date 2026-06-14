@@ -133,7 +133,7 @@ export default function SettingsPage() {
 
   const exportCustomers = async () => {
     try {
-      const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('customers').select('id, full_name, company_name, email, phone, address, gst_number, notes, created_at').order('created_at', { ascending: false });
       if (error) throw error;
       if (!data || data.length === 0) {
         toast.info('No customers found to export.');

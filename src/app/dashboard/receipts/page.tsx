@@ -88,7 +88,6 @@ export default function ReceiptsPage() {
                 full_name,
                 company_name,
                 phone,
-                phone_number,
                 address
               )
             )

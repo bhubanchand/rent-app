@@ -124,7 +124,7 @@ export default function CustomerDetailPage({ params }: PageProps) {
       // 1. Fetch customer details
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
-        .select('*')
+        .select('id, full_name, company_name, email, phone, address, gst_number, notes, tags, custom_fields, created_at, updated_at')
         .eq('id', customerId)
         .single();
 

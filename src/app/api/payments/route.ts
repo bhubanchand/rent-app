@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // 3. Retrieve invoice details
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
-      .select('*, customer:customers(*), payments(amount)')
+      .select('*, customer:customers(id, full_name, company_name, email, phone, address, gst_number), payments(amount)')
       .eq('id', invoice_id)
       .single();
 
