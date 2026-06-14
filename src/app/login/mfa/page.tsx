@@ -102,36 +102,36 @@ export default function MfaChallengePage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4 font-sans text-slate-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(241,245,249,0.9),transparent)] dark:bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 shadow-lg shadow-amber-500/10 mb-3">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 shadow-lg shadow-amber-500/10 mb-3">
             <ShieldAlert className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             Two-Factor Challenge
           </h1>
-          <p className="text-sm text-slate-400 mt-1">This account requires additional verification</p>
+          <p className="text-sm text-slate-550 dark:text-slate-400 mt-1">This account requires additional verification</p>
         </div>
 
-        <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl text-slate-200">
+        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-md shadow-lg dark:shadow-2xl text-slate-800 dark:text-slate-200">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-white text-center">Security Verification</CardTitle>
-            <CardDescription className="text-slate-400 text-center">
+            <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white text-center">Security Verification</CardTitle>
+            <CardDescription className="text-slate-500 dark:text-slate-400 text-center">
               Enter the 6-digit code from your authenticator app
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleVerify}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="code" className="text-slate-300 font-medium text-center block mb-2">
+                <Label htmlFor="code" className="text-slate-650 dark:text-slate-300 font-medium text-center block mb-2">
                   Authenticator Code
                 </Label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-3.5 h-4.5 w-4.5 text-slate-500" />
+                  <KeyRound className="absolute left-3 top-3.5 h-4.5 w-4.5 text-slate-550" />
                   <Input
                     id="code"
                     type="text"
@@ -141,7 +141,7 @@ export default function MfaChallengePage() {
                     placeholder="000 000"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="pl-10 text-center tracking-[0.4em] font-mono text-xl bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-700 rounded-lg py-6"
+                    className="pl-10 text-center tracking-[0.4em] font-mono text-xl bg-slate-50 dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 focus:border-indigo-550 focus:ring-1 focus:ring-indigo-550 text-slate-850 dark:text-white placeholder-slate-400 dark:placeholder-slate-700 rounded-lg py-6"
                     disabled={loading || !factorId}
                     required
                     autoFocus
@@ -152,7 +152,7 @@ export default function MfaChallengePage() {
             <CardFooter className="flex flex-col gap-3">
               <Button
                 type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-6 rounded-lg transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+                className="w-full bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-6 rounded-lg transition-all shadow-md shadow-indigo-650/10 active:scale-[0.98]"
                 disabled={loading || !factorId}
               >
                 {loading ? (
@@ -171,7 +171,7 @@ export default function MfaChallengePage() {
                   supabase.auth.signOut();
                   router.push('/login');
                 }}
-                className="w-full text-slate-400 hover:text-white hover:bg-slate-800/50"
+                className="w-full text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50"
               >
                 Cancel & Sign Out
               </Button>

@@ -41,7 +41,7 @@ export default function MfaSetupPage() {
       // 3. Initiate enrollment
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
-        issuer: 'RentApp',
+        issuer: 'BHUBAN RECORDS',
         friendlyName: user.email,
       });
 
@@ -109,46 +109,46 @@ export default function MfaSetupPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4 font-sans text-slate-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(241,245,249,0.9),transparent)] dark:bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full max-w-lg z-10">
         <div className="text-center mb-6">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/10 text-indigo-400 shadow-lg shadow-indigo-600/10 mb-3">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-600/10 text-indigo-650 dark:text-indigo-400 shadow-lg shadow-indigo-650/10 mb-3">
             <ShieldCheck className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             Secure Administrator Setup
           </h1>
-          <p className="text-sm text-slate-400 mt-1">Configure Multi-Factor Authentication to secure the system</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configure Multi-Factor Authentication to secure the system</p>
         </div>
 
-        <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl text-slate-200">
+        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-md shadow-lg dark:shadow-2xl text-slate-800 dark:text-slate-200">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-white text-center">Enable 2FA Authenticator</CardTitle>
-            <CardDescription className="text-slate-400 text-center">
+            <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white text-center">Enable 2FA Authenticator</CardTitle>
+            <CardDescription className="text-slate-500 dark:text-slate-400 text-center">
               Scan the QR code with Google Authenticator, Authy, or 1Password.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 flex flex-col items-center">
             {enrollData ? (
               <>
-                <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-700 select-none">
+                <div className="bg-white p-4 rounded-xl shadow-md border border-slate-200 select-none">
                   {/* Since Supabase returns a base64 encoded SVG image, we put it directly in img src */}
                   <img src={enrollData.qrCode} alt="2FA QR Code" className="w-48 h-48" />
                 </div>
 
                 <div className="w-full space-y-2 text-center">
                   <span className="text-xs text-slate-500 uppercase tracking-widest block">Manual Secret Key</span>
-                  <code className="px-3 py-1.5 bg-slate-950 border border-slate-800 text-indigo-400 rounded-md font-mono text-sm tracking-wider select-all block break-all">
+                  <code className="px-3 py-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-indigo-650 dark:text-indigo-400 rounded-md font-mono text-sm tracking-wider select-all block break-all">
                     {enrollData.secret}
                   </code>
                 </div>
 
                 <form onSubmit={handleVerifyEnrollment} className="w-full space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="code" className="text-slate-300 font-medium text-center block">
+                    <Label htmlFor="code" className="text-slate-600 dark:text-slate-300 font-medium text-center block">
                       Enter Verification Code
                     </Label>
                     <Input
@@ -160,13 +160,13 @@ export default function MfaSetupPage() {
                       placeholder="000 000"
                       value={code}
                       onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      className="text-center tracking-[0.4em] font-mono text-lg bg-slate-950/80 border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-700 rounded-lg py-5.5"
+                      className="text-center tracking-[0.4em] font-mono text-lg bg-slate-50 dark:bg-slate-950/80 border-slate-200 dark:border-slate-800 focus:border-indigo-550 focus:ring-1 focus:ring-indigo-550 text-slate-850 dark:text-white placeholder-slate-400 dark:placeholder-slate-700 rounded-lg py-5.5"
                       required
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-6 rounded-lg transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+                    className="w-full bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-6 rounded-lg transition-all shadow-md shadow-indigo-650/10 active:scale-[0.98]"
                     disabled={loading}
                   >
                     {loading ? (
@@ -187,7 +187,7 @@ export default function MfaSetupPage() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="justify-center border-t border-slate-800/60 pt-4">
+          <CardFooter className="justify-center border-t border-slate-200 dark:border-slate-800/60 pt-4">
             <Button
               type="button"
               variant="link"
@@ -195,7 +195,7 @@ export default function MfaSetupPage() {
                 supabase.auth.signOut();
                 router.push('/login');
               }}
-              className="text-slate-400 hover:text-white"
+              className="text-slate-500 dark:text-slate-450 hover:text-slate-800 dark:hover:text-white"
             >
               Sign out and try later
             </Button>

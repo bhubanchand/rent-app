@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RentApp Ledger",
-  description: "Invoice, Receipt, and Receivables Management Console",
+  title: "BHUBAN RECORDS",
+  description: "Financial Records & Document Management",
 };
 
 export default function RootLayout({
@@ -24,12 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-slate-100`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100`}
       >
         {children}
-        <Toaster theme="dark" closeButton richColors position="top-right" />
+        <Toaster closeButton richColors position="top-right" />
       </body>
     </html>
   );

@@ -67,6 +67,7 @@ type Customer = {
   company_name: string | null;
   email: string;
   phone: string | null;
+  phone_number?: string | null;
   address: string | null;
   gst_number: string | null;
   notes: string | null;
@@ -132,8 +133,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
       // Set edit form values
       setFullName(customerData.full_name);
       setCompanyName(customerData.company_name || '');
-      setEmail(customerData.email);
-      setPhone(customerData.phone || '');
+      setEmail(customerData.email || '');
+      setPhone(customerData.phone_number || customerData.phone || '');
       setAddress(customerData.address || '');
       setGstNumber(customerData.gst_number || '');
       setNotes(customerData.notes || '');
@@ -230,8 +231,8 @@ export default function CustomerDetailPage({ params }: PageProps) {
   // Submit edit customer form
   const handleEditCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email) {
-      toast.error('Name and Email are required.');
+    if (!fullName || !phone) {
+      toast.error('Name and Phone Number are required.');
       return;
     }
 
@@ -245,18 +246,34 @@ export default function CustomerDetailPage({ params }: PageProps) {
       const payload = {
         full_name: fullName,
         company_name: companyName || null,
-        email,
-        phone: phone || null,
         address: address || null,
         gst_number: gstNumber || null,
         notes: notes || null,
         tags,
       };
 
-      const { error } = await supabase
-        .from('customers')
-        .update(payload)
-        .eq('id', customerId);
+      // Try updating with phone_number first, fallback to phone if column doesn't exist yet
+      let error;
+      try {
+        const res = await supabase
+          .from('customers')
+          .update({ ...payload, phone_number: phone })
+          .eq('id', customerId);
+        error = res.error;
+        if (error && (error.message?.includes('phone_number') || error.code === '42703')) {
+          const retryRes = await supabase
+            .from('customers')
+            .update({ ...payload, phone: phone })
+            .eq('id', customerId);
+          error = retryRes.error;
+        }
+      } catch (err) {
+        const retryRes = await supabase
+          .from('customers')
+          .update({ ...payload, phone: phone })
+          .eq('id', customerId);
+        error = retryRes.error;
+      }
 
       if (error) throw error;
 
@@ -461,17 +478,10 @@ export default function CustomerDetailPage({ params }: PageProps) {
                 </span>
               </div>
               <div className="space-y-1.5">
-                <span className="text-xs text-slate-500 uppercase tracking-wider block">Email</span>
-                <span className="text-white flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-slate-600 shrink-0" />
-                  {customer.email}
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                <span className="text-xs text-slate-500 uppercase tracking-wider block">Phone</span>
-                <span className="text-white flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-slate-600 shrink-0" />
-                  {customer.phone || 'N/A'}
+                <span className="text-xs text-slate-500 uppercase tracking-wider block">Phone Number</span>
+                <span className="text-slate-900 dark:text-white flex items-center gap-2 font-medium">
+                  <Phone className="h-4 w-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  {customer.phone_number || customer.phone || 'N/A'}
                 </span>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
@@ -758,33 +768,18 @@ export default function CustomerDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="editEmail" className="text-slate-300 font-medium text-xs">
-                  Email Address <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="editEmail"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="editPhone" className="text-slate-300 font-medium text-xs">
-                  Phone Number
-                </Label>
-                <Input
-                  id="editPhone"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editPhone" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
+                Phone Number <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="editPhone"
+                placeholder="+91 98765 43210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
+                required
+              />
             </div>
 
             <div className="space-y-1.5">

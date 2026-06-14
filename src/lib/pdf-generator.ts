@@ -13,10 +13,11 @@ type InvoiceData = {
   customer: {
     full_name: string;
     company_name: string | null;
-    email: string;
-    phone: string | null;
-    address: string | null;
-    gst_number: string | null;
+    email?: string | null;
+    phone?: string | null;
+    phone_number?: string | null;
+    address?: string | null;
+    gst_number?: string | null;
   };
   payments?: { amount: number; payment_date: string; payment_method: string }[];
 };
@@ -38,22 +39,12 @@ type ReceiptData = {
   customer: {
     full_name: string;
     company_name: string | null;
-    email: string;
-    phone: string | null;
+    email?: string | null;
+    phone?: string | null;
+    phone_number?: string | null;
+    address?: string | null;
   };
 };
-
-/**
- * Mask customer email addresses (e.g. johndoe@example.com -> j***e@example.com)
- */
-export function maskEmail(email: string): string {
-  if (!email || !email.includes('@')) return email;
-  const [local, domain] = email.split('@');
-  if (local.length <= 2) {
-    return `${local[0]}***@${domain}`;
-  }
-  return `${local[0]}***${local[local.length - 1]}@${domain}`;
-}
 
 /**
  * Builds the jsPDF instance for an invoice.
@@ -88,56 +79,89 @@ export async function buildInvoicePdfDoc(invoice: InvoiceData): Promise<jsPDF> {
   doc.rect(0, 0, 210, 35, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
-  doc.text('RentApp', 15, 22);
+  doc.text('BHUBAN RECORDS', 15, 20);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(156, 163, 175);
-  doc.text('INVOICE OF BILLING', 15, 28);
+  doc.text('Financial Records & Document Management', 15, 27);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
   doc.text('INVOICE', 195, 22, { align: 'right' });
 
-  // 2. Invoice Meta Details
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(`Invoice Number: ${invoice.invoice_number}`, 15, 48);
-
+  // 2. Invoice Meta Details Row (under banner)
+  doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Issue Date: ${invoice.issue_date}`, 15, 54);
-  doc.text(`Due Date: ${invoice.due_date}`, 15, 59);
-  doc.text(`Status: ${invoice.status.toUpperCase()}`, 15, 64);
+  
+  doc.text(`Invoice Number:`, 15, 46);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(invoice.invoice_number, 45, 46);
 
-  // 3. Client & Provider Info
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Issue Date: ${invoice.issue_date}`, 105, 46);
+  doc.text(`Due Date: ${invoice.due_date}`, 155, 46);
+
+  // Draw a fine border separator line
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setLineWidth(0.3);
+  doc.line(15, 50, 195, 50);
+
+  // 3. Client & Provider Info (Side-by-Side)
+  // Left: Provider Info
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text('Bill To:', 120, 48);
+  doc.text('Issued By:', 15, 58);
 
   doc.setFont('helvetica', 'semibold');
   doc.setFontSize(9);
-  doc.text(invoice.customer.full_name, 120, 54);
+  doc.text('BHUBAN RECORDS', 15, 64);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Email: bhuban@chand.co.in', 15, 69);
+  doc.text('Web: invoice.chand.co.in', 15, 74);
+
+  // Right: Client Info
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Bill To:', 120, 58);
+
+  doc.setFont('helvetica', 'semibold');
+  doc.setFontSize(9);
+  doc.text(invoice.customer.full_name, 120, 64);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
+  let nextY = 69;
   if (invoice.customer.company_name) {
-    doc.text(invoice.customer.company_name, 120, 59);
+    doc.text(invoice.customer.company_name, 120, nextY);
+    nextY += 5;
   }
-  doc.text(`Email: ${maskEmail(invoice.customer.email)}`, 120, 64);
-  if (invoice.customer.phone) {
-    doc.text(`Phone: ${invoice.customer.phone}`, 120, 69);
+  
+  const customerPhone = invoice.customer.phone_number || invoice.customer.phone;
+  if (customerPhone) {
+    doc.text(`Phone: ${customerPhone}`, 120, nextY);
+    nextY += 5;
   }
+  
+  if (invoice.customer.address) {
+    const addressLines = doc.splitTextToSize(`Address: ${invoice.customer.address}`, 75);
+    doc.text(addressLines, 120, nextY);
+    nextY += addressLines.length * 4;
+  }
+
   if (invoice.customer.gst_number) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`GSTIN: ${invoice.customer.gst_number}`, 120, 75);
+    doc.text(`GSTIN: ${invoice.customer.gst_number}`, 120, nextY + 1);
   }
 
   // 4. Line Items Table
@@ -148,9 +172,9 @@ export async function buildInvoicePdfDoc(invoice: InvoiceData): Promise<jsPDF> {
   const remainingAmount = Math.max(0, totalAmount - paidAmount);
 
   autoTable(doc, {
-    startY: 85,
+    startY: 96,
     head: [['Description', 'Amount']],
-    body: [[invoice.description || 'Billing Services / Rental Agreement Charges', `INR ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]],
+    body: [[invoice.description || 'Billing Services / Financial Records Management', `INR ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]],
     headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
     bodyStyles: { textColor: [51, 65, 85] },
     alternateRowStyles: { fillColor: [248, 250, 252] },
@@ -184,10 +208,10 @@ export async function buildInvoicePdfDoc(invoice: InvoiceData): Promise<jsPDF> {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text('VERIFIABLE INVOICE', 52, currentY + 10);
+  doc.text('VERIFIABLE DOCUMENT', 52, currentY + 10);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.text('Scan the QR code to verify details', 52, currentY + 15);
+  doc.text('Scan the QR code to verify authenticity', 52, currentY + 15);
   doc.text('on the official verification page.', 52, currentY + 19);
 
   // 7. Payment History Table (if payments exist)
@@ -213,6 +237,15 @@ export async function buildInvoicePdfDoc(invoice: InvoiceData): Promise<jsPDF> {
       bodyStyles: { textColor: [100, 116, 139], fontSize: 8 },
     });
   }
+
+  // 8. Footer Seal & Disclaimer
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  
+  // Center alignment signature disclaimer
+  const footerText = "Generated by BHUBAN RECORDS. This is a digitally generated document and does not require a physical signature.";
+  doc.text(footerText, 105, 285, { align: 'center' });
 
   return doc;
 }
@@ -244,14 +277,14 @@ export async function buildReceiptPdfDoc(receipt: ReceiptData): Promise<jsPDF> {
   doc.rect(0, 0, 210, 35, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
-  doc.text('RentApp', 15, 22);
+  doc.text('BHUBAN RECORDS', 15, 20);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(156, 163, 175);
-  doc.text('OFFICIAL TRANSACTION RECEIPT', 15, 28);
+  doc.text('Financial Records & Document Management', 15, 27);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
@@ -274,33 +307,44 @@ export async function buildReceiptPdfDoc(receipt: ReceiptData): Promise<jsPDF> {
   }
   doc.text(`Invoice Ref: ${receipt.payment.invoice.invoice_number}`, 15, 69);
 
-  // 3. Customer Info
+  // 3. Customer Info (No email printed, only phone and address)
   doc.setFont('helvetica', 'bold');
   doc.text('Customer Info:', 120, 48);
   doc.setFont('helvetica', 'semibold');
   doc.text(receipt.customer.full_name, 120, 54);
+  
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  let nextY = 59;
   if (receipt.customer.company_name) {
-    doc.text(receipt.customer.company_name, 120, 59);
+    doc.text(receipt.customer.company_name, 120, nextY);
+    nextY += 5;
   }
-  doc.text(`Email: ${maskEmail(receipt.customer.email)}`, 120, 64);
-  if (receipt.customer.phone) {
-    doc.text(`Phone: ${receipt.customer.phone}`, 120, 69);
+  
+  const customerPhone = receipt.customer.phone_number || receipt.customer.phone;
+  if (customerPhone) {
+    doc.text(`Phone: ${customerPhone}`, 120, nextY);
+    nextY += 5;
+  }
+
+  if (receipt.customer.address) {
+    const addressLines = doc.splitTextToSize(`Address: ${receipt.customer.address}`, 75);
+    doc.text(addressLines, 120, nextY);
   }
 
   // 4. Amount Received Box
   doc.setFillColor(240, 253, 250); // emerald-50
-  doc.rect(15, 80, 180, 22, 'F');
+  doc.rect(15, 82, 180, 22, 'F');
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(13, 148, 136); // emerald-600
-  doc.text('AMOUNT RECEIVED', 25, 93);
+  doc.text('AMOUNT RECEIVED', 25, 95);
   doc.setFontSize(14);
-  doc.text(`INR ${Number(receipt.payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 190, 93, { align: 'right' });
+  doc.text(`INR ${Number(receipt.payment.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 190, 95, { align: 'right' });
 
   // 5. Verification QR code
-  const currentY = 112;
+  const currentY = 114;
   doc.addImage(qrCodeUrl, 'PNG', 15, currentY, 35, 35);
   
   doc.setFont('helvetica', 'bold');
@@ -337,11 +381,12 @@ export async function buildReceiptPdfDoc(receipt: ReceiptData): Promise<jsPDF> {
   doc.setTextColor(100, 116, 139);
   doc.text(receipt.digital_signature, 20, currentY + 65);
 
-  // 7. Footer Seal
+  // 7. Footer Seal & Disclaimer
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('GENUINE RentApp DIGITAL DOCUMENT - VALID UNTIL REVOKED', 105, 280, { align: 'center' });
+  const footerText = "Generated by BHUBAN RECORDS. This is a digitally generated document and does not require a physical signature.";
+  doc.text(footerText, 105, 285, { align: 'center' });
 
   return doc;
 }

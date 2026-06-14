@@ -131,25 +131,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-4 font-sans text-slate-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(241,245,249,0.9),transparent)] dark:bg-[radial-gradient(circle_at_30%_30%,rgba(15,23,42,0.8),transparent)] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 mb-3">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-650 text-white shadow-lg shadow-indigo-650/10 dark:shadow-indigo-650/30 mb-3">
             <Lock className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-            RentApp Portal
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            BHUBAN RECORDS
           </h1>
-          <p className="text-sm text-slate-400 mt-1">Invoice, Receipt, and Receivables System</p>
+          <p className="text-sm text-slate-550 dark:text-slate-400 mt-1">Financial Records & Document Management</p>
         </div>
 
-        <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl text-slate-200">
+        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-md shadow-lg dark:shadow-2xl text-slate-800 dark:text-slate-200">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-white text-center">Administrator Sign In</CardTitle>
-            <CardDescription className="text-slate-400 text-center">
+            <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white text-center">Administrator Sign In</CardTitle>
+            <CardDescription className="text-slate-500 dark:text-slate-400 text-center">
               Enter credentials to access your console
             </CardDescription>
           </CardHeader>

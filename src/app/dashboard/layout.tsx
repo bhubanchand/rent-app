@@ -76,15 +76,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 flex flex-col md:flex-row">
       {/* 1. Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-slate-900 border-r border-slate-800 p-4 shrink-0">
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 shrink-0 shadow-sm dark:shadow-none">
         <div className="flex items-center gap-2 px-2 py-4 mb-6">
-          <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-md shadow-indigo-600/30">
-            R
+          <div className="h-8 w-8 rounded-lg bg-indigo-650 flex items-center justify-center font-bold text-white text-lg shadow-md shadow-indigo-650/20">
+            B
           </div>
-          <span className="font-bold text-xl bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-            RentApp
+          <span className="font-bold text-xl text-slate-900 dark:text-white">
+            BHUBAN RECORDS
           </span>
         </div>
 
@@ -98,8 +98,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-indigo-650 text-white shadow-md shadow-indigo-650/10'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                 }`}
               >
                 <Icon className="h-4.5 w-4.5" />
@@ -109,28 +109,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="border-t border-slate-800 pt-4 mt-auto">
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-4 mt-auto">
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-3 w-full p-2 hover:bg-slate-800/60 rounded-lg text-left transition-all border-none outline-none cursor-pointer">
-              <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold border border-slate-700">
+            <DropdownMenuTrigger className="flex items-center gap-3 w-full p-2 hover:bg-slate-105/50 dark:hover:bg-slate-800/60 rounded-lg text-left transition-all border-none outline-none cursor-pointer">
+              <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
                 <User className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{profile?.fullName}</p>
-                <p className="text-[10px] text-slate-500 truncate">{profile?.email}</p>
+                <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{profile?.fullName}</p>
+                <p className="text-[10px] text-slate-550 dark:text-slate-500 truncate">{profile?.email}</p>
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 bg-slate-900 border-slate-800 text-slate-200" align="end">
+            <DropdownMenuContent className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200" align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
               <DropdownMenuItem
-                className="focus:bg-slate-800 focus:text-white cursor-pointer"
+                className="focus:bg-slate-100 dark:focus:bg-slate-800 focus:text-slate-900 dark:focus:text-white cursor-pointer"
                 onClick={() => router.push('/dashboard/settings')}
               >
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
               <DropdownMenuItem
                 className="focus:bg-destructive focus:text-white text-destructive cursor-pointer"
                 onClick={handleSignOut}
@@ -144,29 +144,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* 2. Mobile Header */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 z-30">
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-30 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-indigo-600 flex items-center justify-center font-bold text-white text-sm shadow-md shadow-indigo-600/30">
-            R
+          <div className="h-7 w-7 rounded-md bg-indigo-650 flex items-center justify-center font-bold text-white text-sm shadow-md shadow-indigo-650/20">
+            B
           </div>
-          <span className="font-bold text-lg text-white">RentApp</span>
+          <span className="font-bold text-lg text-slate-900 dark:text-white">BHUBAN RECORDS</span>
         </div>
         
         <div className="flex items-center gap-3">
           <button
             onClick={() => setQuickActionOpen(true)}
-            className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white shadow-md shadow-indigo-600/20 active:scale-90 transition-transform"
+            className="p-1.5 bg-indigo-650 hover:bg-indigo-600 rounded-lg text-white shadow-md shadow-indigo-650/10 active:scale-90 transition-transform"
           >
             <Plus className="h-4.5 w-4.5" />
           </button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="h-7 w-7 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 cursor-pointer">
-              <User className="h-3.5 w-3.5 text-slate-300" />
+            <DropdownMenuTrigger className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <User className="h-3.5 w-3.5 text-slate-650 dark:text-slate-300" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-48 bg-slate-900 border-slate-800 text-slate-200" align="end">
+            <DropdownMenuContent className="w-48 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200" align="end">
               <DropdownMenuLabel className="truncate text-xs">{profile?.email}</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
               <DropdownMenuItem
                 className="focus:bg-destructive focus:text-white text-destructive cursor-pointer"
                 onClick={handleSignOut}
@@ -187,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* 4. Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 flex items-center justify-around px-2 z-30 shadow-2xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-2 z-30 shadow-lg">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -196,7 +196,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               key={item.name}
               href={item.href}
               className={`flex flex-col items-center justify-center w-14 h-full gap-1 transition-all ${
-                isActive ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'
+                isActive ? 'text-indigo-650 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-650'
               }`}
             >
               <Icon className="h-5 w-5" />
@@ -210,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="hidden md:block fixed bottom-6 right-6 z-40">
         <button
           onClick={() => setQuickActionOpen(true)}
-          className="h-14 w-14 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
+          className="h-14 w-14 rounded-full bg-indigo-650 hover:bg-indigo-600 text-white shadow-xl shadow-indigo-650/20 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
         >
           <Plus className="h-6 w-6 transition-transform group-hover:rotate-90" />
         </button>
@@ -218,10 +218,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* 6. Quick Action Dialog */}
       <Dialog open={quickActionOpen} onOpenChange={setQuickActionOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-sm rounded-2xl">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 max-w-sm rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white text-center">Quick Actions</DialogTitle>
-            <DialogDescription className="text-slate-400 text-center">
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white text-center">Quick Actions</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-center">
               Select an action to launch immediately
             </DialogDescription>
           </DialogHeader>
@@ -231,9 +231,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 setQuickActionOpen(false);
                 router.push('/dashboard/invoices?create=true');
               }}
-              className="flex flex-col items-center justify-center p-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl gap-2 text-slate-300 hover:text-white transition-all group"
+              className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl gap-2 text-slate-700 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-white transition-all group"
             >
-              <FilePlus className="h-6 w-6 text-indigo-400 group-hover:scale-110 transition-transform" />
+              <FilePlus className="h-6 w-6 text-indigo-550 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
               <span className="text-xs font-semibold">Create Invoice</span>
             </button>
             <button
@@ -241,9 +241,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 setQuickActionOpen(false);
                 router.push('/dashboard/customers?create=true');
               }}
-              className="flex flex-col items-center justify-center p-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl gap-2 text-slate-300 hover:text-white transition-all group"
+              className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl gap-2 text-slate-700 dark:text-slate-300 hover:text-emerald-650 dark:hover:text-white transition-all group"
             >
-              <UserPlus className="h-6 w-6 text-emerald-400 group-hover:scale-110 transition-transform" />
+              <UserPlus className="h-6 w-6 text-emerald-650 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
               <span className="text-xs font-semibold">Add Customer</span>
             </button>
           </div>

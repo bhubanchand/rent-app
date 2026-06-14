@@ -14,21 +14,19 @@ import QRCode from 'qrcode';
 import {
   FileText,
   Calendar,
-  IndianRupee,
   ChevronLeft,
   Loader2,
   Download,
   Share2,
-  CreditCard,
-  History,
-  QrCode,
   CheckCircle,
   AlertTriangle,
-  Receipt,
-  Sparkles,
-  PlusCircle,
   ExternalLink,
   Printer,
+  Sparkles,
+  PlusCircle,
+  QrCode,
+  Check,
+  Building,
 } from 'lucide-react';
 import { generateInvoicePdf, generateReceiptPdf, buildInvoicePdfDoc, buildReceiptPdfDoc } from '@/lib/pdf-generator';
 
@@ -62,10 +60,11 @@ type Invoice = {
     id: string;
     full_name: string;
     company_name: string | null;
-    email: string;
-    phone: string | null;
-    address: string | null;
-    gst_number: string | null;
+    email?: string | null;
+    phone?: string | null;
+    phone_number?: string | null;
+    address?: string | null;
+    gst_number?: string | null;
   };
   payments?: Payment[];
 };
@@ -112,7 +111,27 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         .single();
 
       if (error) throw error;
-      setInvoice(data);
+
+      // Normalize potential array outputs from PostgREST joins to singular objects
+      let normalizedInvoice = { ...data };
+      if (Array.isArray(normalizedInvoice.customer)) {
+        normalizedInvoice.customer = normalizedInvoice.customer[0];
+      }
+
+      if (normalizedInvoice.payments) {
+        normalizedInvoice.payments = normalizedInvoice.payments.map((p: any) => {
+          let receipt = p.receipt;
+          if (Array.isArray(receipt)) {
+            receipt = receipt.length > 0 ? receipt[0] : null;
+          }
+          return {
+            ...p,
+            receipt: receipt || null
+          };
+        });
+      }
+
+      setInvoice(normalizedInvoice);
 
       // Default payment date to today
       setPaymentDate(new Date().toISOString().split('T')[0]);
@@ -175,7 +194,6 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
     setPaymentLoading(true);
     try {
-      // Call secure payments creation api
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,7 +215,6 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
       toast.success(`Payment of ₹${Number(paymentAmount).toLocaleString('en-IN')} added and Receipt generated!`);
       setPaymentDialogOpen(false);
-      // Reset fields
       setPaymentAmount('');
       setTransactionId('');
       setPaymentNotes('');
@@ -210,7 +227,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
     }
   };
 
-  // "Generate & Share" automated workflow
+  // "Generate & Share" automated workflow / Copy Share Link
   const handleGenerateAndShare = async () => {
     if (!invoice) return;
     setShareLoading(true);
@@ -265,10 +282,10 @@ export default function InvoiceDetailPage({ params }: PageProps) {
       
       toast.success(
         <div className="flex flex-col gap-1">
-          <span className="font-bold text-slate-100 flex items-center gap-1.5 text-xs">
-            <Sparkles className="h-4 w-4 text-indigo-400" /> Share Link Copied!
+          <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-xs">
+            <Sparkles className="h-4 w-4 text-indigo-650" /> Copy Share Link Success
           </span>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px] text-slate-500">
             Secure client portal link has been copied to your clipboard.
           </span>
         </div>
@@ -355,8 +372,8 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         customer: {
           full_name: invoice.customer.full_name,
           company_name: invoice.customer.company_name,
-          email: invoice.customer.email,
-          phone: invoice.customer.phone,
+          phone: invoice.customer.phone_number || invoice.customer.phone,
+          address: invoice.customer.address,
         },
       });
       toast.success('Receipt PDF downloaded!');
@@ -387,8 +404,8 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         customer: {
           full_name: invoice.customer.full_name,
           company_name: invoice.customer.company_name,
-          email: invoice.customer.email,
-          phone: invoice.customer.phone,
+          phone: invoice.customer.phone_number || invoice.customer.phone,
+          address: invoice.customer.address,
         },
       });
       const pdfBlob = doc.output('blob');
@@ -413,7 +430,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-40 text-slate-400 gap-3">
+      <div className="flex flex-col items-center justify-center py-40 text-slate-405 gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         <span>Loading invoice details...</span>
       </div>
@@ -422,21 +439,21 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
   if (!invoice) {
     return (
-      <div className="text-center py-20">
-        <ChevronLeft className="h-5 w-5 text-slate-500 cursor-pointer mb-4" onClick={() => router.back()} />
-        <h2 className="text-xl font-bold text-white">Invoice not found</h2>
-        <p className="text-slate-400 mt-2">The requested invoice does not exist or has been deleted.</p>
+      <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm mx-auto mt-12">
+        <ChevronLeft className="h-5 w-5 text-slate-500 cursor-pointer mb-4 mx-auto hover:text-slate-800" onClick={() => router.push('/dashboard/invoices')} />
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Invoice not found</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs">The requested invoice does not exist or has been deleted.</p>
       </div>
     );
   }
 
   const statusColors = {
-    draft: 'bg-slate-800 text-slate-400 border-slate-700',
-    pending: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    partially_paid: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-    paid: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    overdue: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    cancelled: 'bg-red-950/30 text-red-500 border-red-900/30',
+    draft: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+    pending: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20',
+    partially_paid: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-100 dark:border-amber-500/20',
+    paid: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20',
+    overdue: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20',
+    cancelled: 'bg-red-50 dark:bg-red-950/30 text-red-650 dark:text-red-500 border-red-100 dark:border-red-900/30',
   };
 
   return (
@@ -446,34 +463,34 @@ export default function InvoiceDetailPage({ params }: PageProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/dashboard/invoices')}
-            className="p-2 hover:bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-all active:scale-95 shrink-0"
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-all active:scale-95 shrink-0"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div>
-            <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-semibold">
-              Invoice Ledger
+            <span className="text-[10px] text-indigo-650 dark:text-indigo-400 uppercase tracking-widest font-semibold">
+              Invoice Details
             </span>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               {invoice.invoice_number}
             </h1>
           </div>
         </div>
 
-        {/* Global Action Tools */}
+        {/* Action Tools */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Automated Generate & Share button */}
+          {/* Copy Share Link button */}
           <Button
             onClick={handleGenerateAndShare}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-5.5 rounded-xl shadow-lg shadow-indigo-600/15 flex items-center gap-1.5 active:scale-95 transition-transform"
+            className="bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-5 rounded-xl shadow-md shadow-indigo-650/10 flex items-center gap-1.5 active:scale-95 transition-transform"
             disabled={shareLoading}
           >
             {shareLoading ? (
-              <Loader2 className="h-4.5 w-4.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
-                <Share2 className="h-4.5 w-4.5" />
-                Generate & Share
+                <Share2 className="h-4 w-4" />
+                Copy Share Link
               </>
             )}
           </Button>
@@ -481,18 +498,18 @@ export default function InvoiceDetailPage({ params }: PageProps) {
           <Button
             onClick={downloadInvoicePdf}
             variant="outline"
-            className="border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl py-5.5 flex items-center gap-1.5 active:scale-95 transition-transform"
+            className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl py-5 flex items-center gap-1.5 active:scale-95 transition-transform"
           >
-            <Download className="h-4.5 w-4.5" />
+            <Download className="h-4 w-4" />
             Download PDF
           </Button>
 
           <Button
             onClick={printInvoicePdf}
             variant="outline"
-            className="border-slate-800 hover:bg-slate-900 text-slate-300 hover:text-white rounded-xl py-5.5 flex items-center gap-1.5 active:scale-95 transition-transform"
+            className="border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl py-5 flex items-center gap-1.5 active:scale-95 transition-transform"
           >
-            <Printer className="h-4.5 w-4.5" />
+            <Printer className="h-4 w-4" />
             Print Invoice
           </Button>
         </div>
@@ -502,25 +519,25 @@ export default function InvoiceDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Side: Summary and Payments */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3 flex flex-row items-center justify-between gap-3">
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-row items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg font-bold text-white">Invoice Profile</CardTitle>
-                <CardDescription className="text-slate-400 text-xs">
-                  Issued to {invoice.customer.full_name}
+                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Invoice Details</CardTitle>
+                <CardDescription className="text-slate-500 dark:text-slate-400 text-xs">
+                  Financial ledger summary
                 </CardDescription>
               </div>
 
               {/* Status Select dropdown */}
               <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 border text-[10px] font-bold rounded-full uppercase ${statusColors[invoice.status]}`}>
+                <span className={`px-2.5 py-0.5 border text-[10px] font-bold rounded-full uppercase ${statusColors[invoice.status]}`}>
                   {invoice.status.replace('_', ' ')}
                 </span>
                 <select
                   disabled={statusLoading}
                   value={invoice.status}
                   onChange={(e: any) => handleUpdateStatus(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 text-slate-300 rounded-lg text-xs py-1.5 px-2.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300 rounded-lg text-xs py-1.5 px-2 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="draft">Draft</option>
                   <option value="pending">Pending</option>
@@ -531,55 +548,81 @@ export default function InvoiceDetailPage({ params }: PageProps) {
               </div>
             </CardHeader>
             <CardContent className="p-5 space-y-6 text-sm">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider block">Customer</span>
-                  <span
-                    onClick={() => router.push(`/dashboard/customers/${invoice.customer.id}`)}
-                    className="font-semibold text-white hover:text-indigo-400 cursor-pointer flex items-center gap-1"
-                  >
-                    {invoice.customer.full_name}
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </span>
-                  {invoice.customer.company_name && (
-                    <span className="text-xs text-slate-400 block">{invoice.customer.company_name}</span>
-                  )}
+              {/* Issued By & Bill To Layout (Side by Side) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-slate-100 dark:border-slate-800/80">
+                {/* Provider Info */}
+                <div className="space-y-2">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Issued By</span>
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-white block text-sm">BHUBAN RECORDS</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-450 block">bhuban@chand.co.in</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-455 block">invoice.chand.co.in</span>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider block">Dates</span>
-                  <span className="text-white block">Issued: {invoice.issue_date}</span>
-                  <span className="text-slate-400 text-xs block">Due: {invoice.due_date}</span>
+                {/* Client Info */}
+                <div className="space-y-2">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Bill To</span>
+                  <div>
+                    <span
+                      onClick={() => router.push(`/dashboard/customers/${invoice.customer.id}`)}
+                      className="font-bold text-slate-900 dark:text-white hover:text-indigo-650 dark:hover:text-indigo-400 cursor-pointer flex items-center gap-1 text-sm"
+                    >
+                      {invoice.customer.full_name}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </span>
+                    {invoice.customer.company_name && (
+                      <span className="text-xs text-slate-500 dark:text-slate-450 block">{invoice.customer.company_name}</span>
+                    )}
+                    <span className="text-xs text-slate-500 dark:text-slate-450 block">Phone: {invoice.customer.phone_number || invoice.customer.phone || 'N/A'}</span>
+                    {invoice.customer.address && (
+                      <span className="text-xs text-slate-500 dark:text-slate-450 block max-w-xs">{invoice.customer.address}</span>
+                    )}
+                    {invoice.customer.gst_number && (
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-350 block mt-1">GSTIN: {invoice.customer.gst_number}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5 border-t border-slate-800/80 pt-4">
-                <span className="text-xs text-slate-500 uppercase tracking-wider block">Billing Description</span>
-                <p className="text-slate-300 whitespace-pre-wrap leading-relaxed">
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Issue Date</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">{invoice.issue_date}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Due Date</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">{invoice.due_date}</span>
+                </div>
+              </div>
+
+              {/* Description Details */}
+              <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800/80 pt-4">
+                <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Billing Description</span>
+                <p className="text-slate-650 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                   {invoice.description || 'No description provided.'}
                 </p>
               </div>
 
-              {/* Financial Balance Summary */}
-              <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl grid grid-cols-3 gap-4 text-center">
+              {/* Emphasized Balance Due Summary */}
+              <div className="grid grid-cols-3 gap-4 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-center bg-slate-50/50 dark:bg-slate-950/20">
                 <div className="space-y-1">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Invoice Total</span>
-                  <span className="text-base font-bold text-white">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest font-semibold block">Invoice Total</span>
+                  <span className="text-base font-bold text-slate-800 dark:text-white">
                     ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="space-y-1 border-x border-slate-800/80">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Total Paid</span>
-                  <span className="text-base font-bold text-emerald-400">
+                <div className="space-y-1 border-x border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-550 uppercase tracking-widest font-semibold block">Total Paid</span>
+                  <span className="text-base font-bold text-emerald-600 dark:text-emerald-500">
                     ₹{paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Balance Due</span>
+                <div className="space-y-1 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 rounded-xl py-1 px-2">
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-widest font-bold block">Balance Due</span>
                   <span
-                    className={`text-base font-bold ${
-                      remainingAmount > 0 ? 'text-amber-500' : 'text-slate-400'
-                    }`}
+                    className={`text-base font-extrabold text-amber-600 dark:text-amber-500`}
                   >
                     ₹{remainingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
@@ -589,12 +632,12 @@ export default function InvoiceDetailPage({ params }: PageProps) {
           </Card>
 
           {/* Payments & Receipts Ledger */}
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3 flex flex-row items-center justify-between">
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-bold text-white">Receipts & Payment History</CardTitle>
-                <CardDescription className="text-slate-400 text-xs">
-                  Review partial payment collections
+                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Receipts & Payments</CardTitle>
+                <CardDescription className="text-slate-500 dark:text-slate-400 text-xs">
+                  Review payment collection receipts
                 </CardDescription>
               </div>
               {remainingAmount > 0.01 && (
@@ -609,14 +652,14 @@ export default function InvoiceDetailPage({ params }: PageProps) {
             <CardContent className="p-0">
               {!invoice.payments || invoice.payments.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-slate-600" />
+                  <AlertTriangle className="h-5 w-5 text-slate-400 dark:text-slate-600" />
                   <span>No payments registered on this ledger.</span>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead>
-                      <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase font-semibold bg-slate-950/20">
+                      <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-xs uppercase font-semibold bg-slate-50/50 dark:bg-slate-950/20">
                         <th className="p-4">Date</th>
                         <th className="p-4">Receipt #</th>
                         <th className="p-4">Method</th>
@@ -626,13 +669,13 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                     </thead>
                     <tbody>
                       {invoice.payments.map((p) => (
-                        <tr key={p.id} className="border-b border-slate-800/60 hover:bg-slate-800/30">
-                          <td className="p-4 text-xs">{p.payment_date}</td>
-                          <td className="p-4 font-mono font-bold text-indigo-400 text-xs">
+                        <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="p-4 text-xs text-slate-650 dark:text-slate-350">{p.payment_date}</td>
+                          <td className="p-4 font-mono font-bold text-indigo-650 dark:text-indigo-400 text-xs">
                             {p.receipt?.receipt_number || 'GENERATE ERR'}
                           </td>
-                          <td className="p-4 text-xs text-slate-400 uppercase">{p.payment_method.replace('_', ' ')}</td>
-                          <td className="p-4 font-semibold text-white">
+                          <td className="p-4 text-xs text-slate-500 dark:text-slate-400 uppercase">{p.payment_method.replace('_', ' ')}</td>
+                          <td className="p-4 font-semibold text-slate-900 dark:text-white">
                             ₹{Number(p.amount).toLocaleString('en-IN')}
                           </td>
                           <td className="p-4 text-right">
@@ -641,14 +684,14 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                                 <Button
                                   onClick={() => downloadReceiptPdf(p)}
                                   variant="ghost"
-                                  className="h-8 py-1 px-2.5 text-xs border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg flex items-center gap-1"
+                                  className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
                                 >
                                   <Download className="h-3 w-3" /> PDF
                                 </Button>
                                 <Button
                                   onClick={() => printReceiptPdf(p)}
                                   variant="ghost"
-                                  className="h-8 py-1 px-2.5 text-xs border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg flex items-center gap-1"
+                                  className="h-8 py-1 px-2.5 text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg flex items-center gap-1 cursor-pointer"
                                 >
                                   <Printer className="h-3 w-3" /> Print
                                 </Button>
@@ -665,38 +708,38 @@ export default function InvoiceDetailPage({ params }: PageProps) {
           </Card>
         </div>
 
-        {/* Right Side: QR Verification Info */}
+        {/* Right Side: Verification block */}
         <div className="space-y-6">
-          <Card className="bg-slate-900 border-slate-800 text-slate-200">
-            <CardHeader className="border-b border-slate-800 pb-3">
-              <CardTitle className="text-md font-bold text-white flex items-center gap-2">
-                <QrCode className="h-4.5 w-4.5 text-indigo-400" /> Integrity Verification
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+              <CardTitle className="text-md font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <QrCode className="h-4.5 w-4.5 text-indigo-650 dark:text-indigo-400" /> Invoice Verification
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 flex flex-col items-center text-center space-y-4">
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                This invoice features a dynamic verification QR code. Scanners will route to the validation screen to verify details.
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Scan the QR code to verify the authenticity of this document.
               </p>
               
               {qrCodeUrl ? (
-                <div className="bg-white p-3.5 rounded-xl border border-slate-700 shadow-md">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-md">
                   <img src={qrCodeUrl} alt="Invoice Verification QR Code" className="w-40 h-40" />
                 </div>
               ) : (
-                <div className="h-40 w-40 flex items-center justify-center bg-slate-950 border border-slate-800 rounded-xl">
+                <div className="h-40 w-40 flex items-center justify-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
                   <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                 </div>
               )}
 
-              <div className="w-full text-xs space-y-1.5 border-t border-slate-800 pt-3">
+              <div className="w-full text-xs space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
                 <div className="flex justify-between items-center text-slate-500">
                   <span>Signer Authority</span>
-                  <span className="font-semibold text-white">RentApp Server</span>
+                  <span className="font-semibold text-slate-800 dark:text-white">BHUBAN RECORDS Server</span>
                 </div>
                 <div className="flex justify-between items-center text-slate-500">
-                  <span>Audit Event Logged</span>
-                  <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                    <CheckCircle className="h-3.5 w-3.5" /> Checked
+                  <span>Status Audit</span>
+                  <span className="text-emerald-600 dark:text-emerald-500 font-semibold flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5" /> Authenticated
                   </span>
                 </div>
               </div>
@@ -707,28 +750,28 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Add Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-md rounded-2xl">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 max-w-lg rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white">Apply Payment & Issue Receipt</DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs">
-              Apply full or partial payment amount to update this invoice balance.
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Apply Payment & Issue Receipt</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-xs">
+              Apply payment amount to update this invoice balance.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddPayment} className="space-y-4 py-2">
             <div className="space-y-1">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Maximum Payable</span>
-              <span className="text-sm font-bold text-white">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold block">Maximum Payable</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">
                 ₹{remainingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="paymentAmountInput" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="paymentAmountInput" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Amount Received <span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-semibold">₹</span>
+                  <span className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500 text-sm font-semibold">₹</span>
                   <Input
                     id="paymentAmountInput"
                     type="number"
@@ -737,13 +780,13 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                     max={remainingAmount + 0.01}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="pl-7 bg-slate-950 border-slate-800 text-white rounded-lg"
+                    className="pl-7 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="paymentDateInput" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="paymentDateInput" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Payment Date <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -751,7 +794,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                   required
                 />
               </div>
@@ -759,14 +802,14 @@ export default function InvoiceDetailPage({ params }: PageProps) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="paymentMethodSelect" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="paymentMethodSelect" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Payment Method <span className="text-red-500">*</span>
                 </Label>
                 <select
                   id="paymentMethodSelect"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg text-sm py-2.5 px-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg text-sm py-2.5 px-3 focus:outline-none focus:border-indigo-500"
                   required
                 >
                   <option value="bank_transfer">Bank Transfer</option>
@@ -776,7 +819,7 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="transactionIdInput" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="transactionIdInput" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Transaction ID
                 </Label>
                 <Input
@@ -784,30 +827,30 @@ export default function InvoiceDetailPage({ params }: PageProps) {
                   placeholder="TXN987654321"
                   value={transactionId}
                   onChange={(e) => setTransactionId(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="paymentNotesInput" className="text-slate-300 font-medium text-xs">
-                Internal Notes <span className="text-[10px] text-slate-500 font-normal">(optional)</span>
+              <Label htmlFor="paymentNotesInput" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
+                Internal Notes <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">(optional)</span>
               </Label>
               <Textarea
                 id="paymentNotesInput"
                 placeholder="Details of payments, source..."
                 value={paymentNotes}
                 onChange={(e) => setPaymentNotes(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white rounded-lg h-20 resize-none"
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg h-20 resize-none"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-slate-800/60">
+            <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setPaymentDialogOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
                 disabled={paymentLoading}
               >
                 Cancel

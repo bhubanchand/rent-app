@@ -31,6 +31,7 @@ type Customer = {
   company_name: string | null;
   email: string;
   phone: string | null;
+  phone_number?: string | null;
   address: string | null;
   gst_number: string | null;
   notes: string | null;
@@ -69,7 +70,6 @@ function CustomersContent() {
 
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [gstNumber, setGstNumber] = useState('');
@@ -121,8 +121,8 @@ function CustomersContent() {
   // 2. Submit form to create customer
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email) {
-      toast.error('Name and Email are required fields.');
+    if (!fullName || !phone) {
+      toast.error('Name and Phone Number are required fields.');
       return;
     }
 
@@ -136,8 +136,6 @@ function CustomersContent() {
       const payload = {
         full_name: fullName,
         company_name: companyName || null,
-        email,
-        phone: phone || null,
         address: address || null,
         gst_number: gstNumber || null,
         notes: notes || null,
@@ -145,7 +143,22 @@ function CustomersContent() {
         custom_fields: customFieldValues,
       };
 
-      const { data, error } = await supabase.from('customers').insert([payload]).select();
+      // Try inserting with phone_number first, fallback to phone if column doesn't exist yet
+      let data, error;
+      try {
+        const res = await supabase.from('customers').insert([{ ...payload, phone_number: phone }]).select();
+        data = res.data;
+        error = res.error;
+        if (error && (error.message?.includes('phone_number') || error.code === '42703')) {
+          const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select();
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+      } catch (err) {
+        const retryRes = await supabase.from('customers').insert([{ ...payload, phone: phone }]).select();
+        data = retryRes.data;
+        error = retryRes.error;
+      }
 
       if (error) throw error;
 
@@ -155,7 +168,6 @@ function CustomersContent() {
       // Reset Form fields
       setFullName('');
       setCompanyName('');
-      setEmail('');
       setPhone('');
       setAddress('');
       setGstNumber('');
@@ -197,11 +209,13 @@ function CustomersContent() {
 
   const filteredCustomers = customers
     .filter((c) => {
+      const cPhone = c.phone_number || c.phone || '';
+      const cEmail = c.email || '';
       const matchesSearch =
         c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        cEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.company_name && c.company_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (c.phone && c.phone.includes(searchQuery));
+        (cPhone && cPhone.includes(searchQuery));
 
       const matchesTag = selectedTag === 'all' || c.tags.includes(selectedTag);
 
@@ -209,7 +223,7 @@ function CustomersContent() {
     })
     .sort((a, b) => {
       if (sortBy === 'name_asc') return a.full_name.localeCompare(b.full_name);
-      if (sortBy === 'name_desc') return b.full_name.localeCompare(a.full_name);
+      if (sortBy === 'name_desc') return b.full_name.localeCompare(b.full_name);
       // default: newest
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -219,15 +233,15 @@ function CustomersContent() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Users className="h-8 w-8 text-indigo-500" />
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            <Users className="h-8 w-8 text-indigo-600 dark:text-indigo-500" />
             Customers
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Manage and audit your customer directory</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage and audit your customer directory</p>
         </div>
         <Button
           onClick={() => setCreateDialogOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-5.5 px-4 rounded-xl shadow-lg shadow-indigo-600/15 flex items-center gap-2 active:scale-98 transition-transform sm:w-auto w-full justify-center"
+          className="bg-indigo-650 hover:bg-indigo-600 text-white font-semibold py-5.5 px-4 rounded-xl shadow-md shadow-indigo-650/10 flex items-center gap-2 active:scale-98 transition-transform sm:w-auto w-full justify-center"
         >
           <Plus className="h-5 w-5" />
           Add Customer
@@ -236,16 +250,16 @@ function CustomersContent() {
 
       {/* Stats Quick Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800 text-white">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm">
           <CardContent className="p-4 flex flex-col justify-center">
-            <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Total Customers</span>
-            <span className="text-2xl font-bold mt-1">{customers.length}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">Total Customers</span>
+            <span className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{customers.length}</span>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800 text-white">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm">
           <CardContent className="p-4 flex flex-col justify-center">
-            <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold">With Balances</span>
-            <span className="text-2xl font-bold mt-1 text-amber-500">
+            <span className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">With Balances</span>
+            <span className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-500">
               {customers.filter((c) => computeBalance(c) > 0).length}
             </span>
           </CardContent>
@@ -253,26 +267,26 @@ function CustomersContent() {
       </div>
 
       {/* Filter and Search Controls */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-xl">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3.5 h-4.5 w-4.5 text-slate-500" />
+            <Search className="absolute left-3 top-3.5 h-4.5 w-4.5 text-slate-400 dark:text-slate-500" />
             <Input
-              placeholder="Search by name, company, email or phone..."
+              placeholder="Search by name, company or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 py-5.5 bg-slate-950/50 border-slate-800 text-white placeholder-slate-500 focus:border-indigo-500 rounded-xl"
+              className="pl-10 py-5.5 bg-slate-50 dark:bg-slate-950/50 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-indigo-650 rounded-xl"
             />
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto shrink-0 pb-1 md:pb-0">
-            <span className="text-xs text-slate-400 font-medium flex items-center gap-1 shrink-0">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1 shrink-0">
               <ArrowUpDown className="h-3.5 w-3.5" /> Sort:
             </span>
             <select
               value={sortBy}
               onChange={(e: any) => setSortBy(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-slate-300 rounded-lg text-xs py-2 px-3 focus:outline-none focus:border-indigo-500"
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs py-2 px-3 focus:outline-none focus:border-indigo-650"
             >
               <option value="newest">Newest Additions</option>
               <option value="name_asc">Name A-Z</option>
@@ -283,16 +297,16 @@ function CustomersContent() {
 
         {/* Tag Filters */}
         {allTags.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto py-1 border-t border-slate-800/60 pt-3">
-            <span className="text-xs text-slate-400 font-medium flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto py-1 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1 shrink-0">
               <Tag className="h-3.5 w-3.5" /> Tags:
             </span>
             <button
               onClick={() => setSelectedTag('all')}
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 ${
                 selectedTag === 'all'
-                  ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
-                  : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-indigo-650 text-white shadow shadow-indigo-650/10'
+                  : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               All
@@ -303,8 +317,8 @@ function CustomersContent() {
                 onClick={() => setSelectedTag(tag)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 ${
                   selectedTag === tag
-                    ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
-                    : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-indigo-650 text-white shadow shadow-indigo-650/10'
+                    : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
                 {tag}
@@ -316,15 +330,15 @@ function CustomersContent() {
 
       {/* Customer Directory List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500 dark:text-slate-400 gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600 dark:text-indigo-500" />
           <span>Loading customers directory...</span>
         </div>
       ) : filteredCustomers.length === 0 ? (
-        <div className="text-center py-16 bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl">
-          <Users className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400 font-medium">No customers found</p>
-          <p className="text-xs text-slate-600 mt-1">Try expanding your search criteria or add a new customer</p>
+        <div className="text-center py-16 bg-white dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+          <Users className="h-10 w-10 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-800 dark:text-slate-400 font-medium">No customers found</p>
+          <p className="text-xs text-slate-500 dark:text-slate-600 mt-1">Try expanding your search criteria or add a new customer</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -334,32 +348,31 @@ function CustomersContent() {
               <Card
                 key={customer.id}
                 onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
-                className="bg-slate-900 border-slate-800 hover:border-slate-700/80 cursor-pointer shadow-lg hover:shadow-xl transition-all rounded-2xl group flex flex-col text-slate-200"
+                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer shadow-sm hover:shadow-md transition-all rounded-2xl group flex flex-col text-slate-800 dark:text-slate-200"
               >
                 <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <CardTitle className="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors truncate">
+                    <CardTitle className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-650 dark:group-hover:text-indigo-400 transition-colors truncate">
                       {customer.full_name}
                     </CardTitle>
                     {customer.company_name && (
-                      <CardDescription className="text-slate-400 text-xs flex items-center gap-1.5 mt-0.5 truncate">
-                        <Building2 className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                      <CardDescription className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1.5 mt-0.5 truncate">
+                        <Building2 className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                         {customer.company_name}
                       </CardDescription>
                     )}
                   </div>
-                  <ChevronRight className="h-5 w-5 text-slate-500 group-hover:translate-x-1 transition-transform shrink-0 self-center" />
+                  <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500 group-hover:translate-x-1 transition-transform shrink-0 self-center" />
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-3 flex-1 flex flex-col justify-between">
-                  <div className="space-y-1.5 text-xs text-slate-400 mt-1">
-                    <div className="flex items-center gap-2 truncate">
-                      <Mail className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                      {customer.email}
+                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-3.5 w-3.5 text-slate-400 dark:text-slate-600 shrink-0" />
+                      <span>{customer.phone_number || customer.phone || 'No Phone Number'}</span>
                     </div>
-                    {customer.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                        {customer.phone}
+                    {customer.address && (
+                      <div className="text-[11px] text-slate-450 dark:text-slate-500 line-clamp-1">
+                        {customer.address}
                       </div>
                     )}
                   </div>
@@ -370,7 +383,7 @@ function CustomersContent() {
                       {customer.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="px-2 py-0.5 bg-slate-950 border border-slate-800 text-[10px] font-semibold rounded-md text-slate-400"
+                          className="px-2 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-semibold rounded-md text-slate-500 dark:text-slate-400"
                         >
                           {tag}
                         </span>
@@ -379,13 +392,13 @@ function CustomersContent() {
                   )}
 
                   {/* Balance details */}
-                  <div className="border-t border-slate-800/80 pt-3 mt-3 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">
+                  <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 mt-3 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold">
                       Receivables Balance
                     </span>
                     <span
                       className={`text-sm font-bold ${
-                        balance > 0 ? 'text-amber-500' : 'text-slate-400'
+                        balance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-slate-450 dark:text-slate-400'
                       }`}
                     >
                       ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -400,17 +413,17 @@ function CustomersContent() {
 
       {/* Create Customer Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-slate-100 max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white">Add New Customer</DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs">
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Add New Customer</DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-xs">
               Add a customer profile to generate invoices and track payments.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateCustomer} className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="fullName" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="fullName" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Full Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -418,12 +431,12 @@ function CustomersContent() {
                   placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="companyName" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="companyName" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   Company Name
                 </Label>
                 <Input
@@ -431,42 +444,27 @@ function CustomersContent() {
                   placeholder="ACME Corp"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-slate-300 font-medium text-xs">
-                  Email Address <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-slate-300 font-medium text-xs">
-                  Phone Number
-                </Label>
-                <Input
-                  id="phone"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="address" className="text-slate-300 font-medium text-xs">
+              <Label htmlFor="phone" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
+                Phone Number <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="phone"
+                placeholder="+91 98765 43210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="address" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                 Billing Address
               </Label>
               <Textarea
@@ -474,13 +472,13 @@ function CustomersContent() {
                 placeholder="Street address, City, State, ZIP"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white rounded-lg h-20 resize-none"
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg h-20 resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="gstNumber" className="text-slate-300 font-medium text-xs">
+                <Label htmlFor="gstNumber" className="text-slate-600 dark:text-slate-300 font-medium text-xs">
                   GST Number
                 </Label>
                 <Input
@@ -488,34 +486,34 @@ function CustomersContent() {
                   placeholder="22AAAAA0000A1Z5"
                   value={gstNumber}
                   onChange={(e) => setGstNumber(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="tagsInput" className="text-slate-300 font-medium text-xs flex items-center gap-1">
-                  Tags <span className="text-[10px] text-slate-500 font-normal">(comma-separated)</span>
+                <Label htmlFor="tagsInput" className="text-slate-600 dark:text-slate-300 font-medium text-xs flex items-center gap-1">
+                  Tags <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">(comma-separated)</span>
                 </Label>
                 <Input
                   id="tagsInput"
                   placeholder="VIP, monthly, retail"
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                  className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                 />
               </div>
             </div>
 
             {/* Custom fields definitions catalog injection */}
             {customFieldsSchema.length > 0 && (
-              <div className="border-t border-slate-800/80 pt-4 mt-2 space-y-4">
-                <span className="text-[11px] text-slate-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-indigo-400" />
+              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-4 mt-2 space-y-4">
+                <span className="text-[11px] text-slate-400 dark:text-slate-550 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-indigo-650 dark:text-indigo-400" />
                   Custom Profile Fields
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {customFieldsSchema.map((field) => (
                     <div key={field.id} className="space-y-1.5">
-                      <Label htmlFor={`custom-${field.field_name}`} className="text-slate-300 font-medium text-xs">
+                      <Label htmlFor={`custom-${field.field_name}`} className="text-slate-650 dark:text-slate-300 font-medium text-xs">
                         {field.field_name}
                       </Label>
                       <Input
@@ -529,7 +527,7 @@ function CustomersContent() {
                               field.field_type === 'number' ? Number(e.target.value) : e.target.value,
                           })
                         }
-                        className="bg-slate-950 border-slate-800 text-white rounded-lg"
+                        className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg"
                       />
                     </div>
                   ))}
@@ -538,31 +536,31 @@ function CustomersContent() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="notes" className="text-slate-300 font-medium text-xs">
-                Internal Notes <span className="text-[10px] text-slate-500 font-normal">(Never shown to customer)</span>
+              <Label htmlFor="notes" className="text-slate-650 dark:text-slate-300 font-medium text-xs">
+                Internal Notes <span className="text-[10px] text-slate-400 dark:text-slate-550 font-normal">(Never shown to customer)</span>
               </Label>
               <Textarea
                 id="notes"
                 placeholder="Payment schedules, preferences..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="bg-slate-950 border-slate-800 text-white rounded-lg h-20 resize-none"
+                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg h-20 resize-none"
               />
             </div>
 
-            <DialogFooter className="pt-4 border-t border-slate-800/60">
+            <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-850/60">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setCreateDialogOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 dark:text-slate-450 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/40"
                 disabled={formLoading}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6"
+                className="bg-indigo-650 hover:bg-indigo-600 text-white font-semibold px-6 shadow-sm"
                 disabled={formLoading}
               >
                 {formLoading ? (

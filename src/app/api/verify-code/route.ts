@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
     const adminSupabase = createAdminClient();
 
     // 2. Search in Receipts (ONLY by verification_code to prevent receipt enumeration attacks)
-    // Receipts CANNOT be looked up directly by sequential receipt_number.
     const { data: receipt, error: receiptError } = await adminSupabase
       .from('receipts')
       .select(`
@@ -58,13 +57,7 @@ export async function POST(request: NextRequest) {
           transaction_id,
           invoice:invoices(
             invoice_number,
-            customer:customers(
-              id,
-              full_name,
-              company_name,
-              email,
-              phone
-            )
+            customer:customers(*)
           )
         )
       `)
@@ -82,8 +75,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (receipt && !Array.isArray(receipt) && receipt.receipt_number) {
-      const payment: any = receipt.payment;
-      const customer: any = payment?.invoice?.customer;
+      let payment: any = receipt.payment;
+      if (Array.isArray(payment)) payment = payment[0];
+
+      let invoice: any = payment?.invoice;
+      if (Array.isArray(invoice)) invoice = invoice[0];
+
+      let customer: any = invoice?.customer;
+      if (Array.isArray(customer)) customer = customer[0];
+
       const customerName = customer?.full_name || 'N/A';
       
       // Perform cryptographic signature verification
@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
           customer: {
             full_name: customer?.full_name || 'N/A',
             company_name: customer?.company_name || null,
-            email: customer?.email || '',
-            phone: customer?.phone || null
+            phone: customer?.phone_number || customer?.phone || null,
+            address: customer?.address || null
           }
         }
       });
@@ -193,14 +193,7 @@ export async function POST(request: NextRequest) {
         due_date,
         description,
         status,
-        customer:customers(
-          full_name,
-          company_name,
-          email,
-          phone,
-          address,
-          gst_number
-        ),
+        customer:customers(*),
         payments(
           amount,
           payment_date,
@@ -221,7 +214,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (invoice && !Array.isArray(invoice) && invoice.invoice_number) {
-      const customer: any = invoice.customer;
+      let customer: any = invoice.customer;
+      if (Array.isArray(customer)) customer = customer[0];
       
       // Log verification success
       await adminSupabase.from('audit_logs').insert([
@@ -252,8 +246,7 @@ export async function POST(request: NextRequest) {
           customer: {
             full_name: customer?.full_name || 'N/A',
             company_name: customer?.company_name || null,
-            email: customer?.email || '',
-            phone: customer?.phone || null,
+            phone: customer?.phone_number || customer?.phone || null,
             address: customer?.address || null,
             gst_number: customer?.gst_number || null
           },
