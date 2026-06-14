@@ -134,6 +134,9 @@ function CustomersContent() {
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
+      const cleanPhone = phone.replace(/[^0-9]/g, '') || '0000000000';
+      const dummyEmail = `${fullName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'customer'}-${cleanPhone}@no-email.com`;
+
       const payload = {
         full_name: fullName,
         company_name: companyName || null,
@@ -142,6 +145,7 @@ function CustomersContent() {
         notes: notes || null,
         tags,
         custom_fields: customFieldValues,
+        email: dummyEmail,
       };
 
       // Try inserting with phone_number first, fallback to phone if column doesn't exist yet
