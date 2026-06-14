@@ -63,6 +63,15 @@ type Payment = {
   };
 };
 
+const getCurrentMonthYearStr = () => {
+  try {
+    const date = new Date();
+    return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+  } catch (e) {
+    return 'all';
+  }
+};
+
 type Customer = {
   id: string;
   full_name: string;
@@ -77,7 +86,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthYearStr());
 
   // Set mounted state to prevent hydration errors on charts
   useEffect(() => {
@@ -177,6 +186,10 @@ export default function DashboardPage() {
   // Extract all available months from both invoices and payments
   const availableMonths = (() => {
     const monthsSet = new Set<string>();
+    const currentMonth = getCurrentMonthYearStr();
+    if (currentMonth && currentMonth !== 'all') {
+      monthsSet.add(currentMonth);
+    }
     invoices.forEach((inv) => {
       if (inv.issue_date) {
         monthsSet.add(getMonthYear(inv.issue_date));

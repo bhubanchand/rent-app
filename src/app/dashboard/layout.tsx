@@ -67,6 +67,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  // Auto-logout if inactive for 3 minutes (180,000 ms)
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleSignOut();
+        toast.info('Logged out automatically due to inactivity.');
+      }, 180000); // 3 minutes = 180,000 ms
+    };
+
+    // Events to monitor for user activity
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+
+    // Add listeners
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    // Initialize the timer
+    resetTimer();
+
+    // Cleanup listeners and timeout on unmount
+    return () => {
+      clearTimeout(timeoutId);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [supabase]);
+
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Customers', href: '/dashboard/customers', icon: Users },
